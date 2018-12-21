@@ -27,25 +27,27 @@ class LanguageModel():
 
         LANGUAGE = "english"
 
-        pdfFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data") if i.endswith("pdf")]
+        pdfFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/") if i.endswith("pdf")]
         wordFreqTF = {}
         for file in pdfFiles:
+            #print(file)
 
-            raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/" + file)
+            raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/" + file)
 
             fileSplit = file.split(".")
 
-            txtfile = fileSplit[0] + ".txt"
+            txtfile = "C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/" + fileSplit[0] + ".txt"
 
-            text_file = open(txtfile, "w", encoding="utf-8")
+            text_file = open(txtfile, "w", encoding="raw_unicode_escape")
             text_file.write(raw['content'])
             text_file.close()
 
-        txtFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data") if
+        txtFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/") if
                  i.endswith("txt")]
         for file in txtFiles:
+            #print(file)
 
-            _parser = PlaintextParser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/" + file, Tokenizer(LANGUAGE))
+            _parser = PlaintextParser.from_file(("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/" + file), Tokenizer(LANGUAGE))
 
             stemmer = Stemmer(LANGUAGE)
 

@@ -46,7 +46,7 @@ class AbstractSummarizer(object):
         infos = count(infos)
         # sort sentences by their order in document
         infos = sorted(infos, key=attrgetter("order"))
-        for i in infos:
-            print(i)
+        #for i in infos:
+            #print(i)
 
         return tuple(i.sentence for i in infos)

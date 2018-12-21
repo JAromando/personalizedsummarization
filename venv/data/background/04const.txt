@@ -1,0 +1,1101 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Introduction to Information Retrieval
+
+
+Online edition (c)
+2009 Cambridge UP
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+DRAFT! © April 1, 2009 Cambridge University Press. Feedback welcome. 67
+
+4 Index construction
+
+In this chapter, we look at how to construct an inverted index. We call this
+process index construction or indexing; the process or machine that performs itINDEXING
+the indexer. The design of indexing algorithms is governed by hardware con-INDEXER
+straints. We therefore begin this chapter with a review of the basics of com-
+puter hardware that are relevant for indexing. We then introduce blocked
+sort-based indexing (Section 4.2), an efficient single-machine algorithm de-
+signed for static collections that can be viewed as a more scalable version of
+the basic sort-based indexing algorithm we introduced in Chapter 1. Sec-
+tion 4.3 describes single-pass in-memory indexing, an algorithm that has
+even better scaling properties because it does not hold the vocabulary in
+memory. For very large collections like the web, indexing has to be dis-
+tributed over computer clusters with hundreds or thousands of machines.
+We discuss this in Section 4.4. Collections with frequent changes require dy-
+namic indexing introduced in Section 4.5 so that changes in the collection are
+immediately reflected in the index. Finally, we cover some complicating is-
+sues that can arise in indexing \u2013 such as security and indexes for ranked
+retrieval \u2013 in Section 4.6.
+
+Index construction interacts with several topics covered in other chapters.
+The indexer needs raw text, but documents are encoded in many ways (see
+Chapter 2). Indexers compress and decompress intermediate files and the
+final index (see Chapter 5). In web search, documents are not on a local
+file system, but have to be spidered or crawled (see Chapter 20). In enter-
+prise search, most documents are encapsulated in varied content manage-
+ment systems, email applications, and databases. We give some examples
+in Section 4.7. Although most of these applications can be accessed via http,
+native Application Programming Interfaces (APIs) are usually more efficient.
+The reader should be aware that building the subsystem that feeds raw text
+to the indexing process can in itself be a challenging problem.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+68 4 Index construction
+
+\u25ee Table 4.1 Typical system parameters in 2007. The seek time is the time needed
+to position the disk head in a new position. The transfer time per byte is the rate of
+transfer from disk to memory when the head is in the right position.
+
+Symbol Statistic Value
+
+s average seek time 5 ms = 5× 10\u22123 s
+b transfer time per byte 0.02 µs = 2× 10\u22128 s
+
+processor\u2019s clock rate 109 s\u22121
+
+p lowlevel operation
+(e.g., compare & swap a word) 0.01 µs = 10\u22128 s
+
+size of main memory several GB
+size of disk space 1 TB or more
+
+4.1 Hardware basics
+
+When building an information retrieval (IR) system, many decisions are based
+on the characteristics of the computer hardware on which the system runs.
+We therefore begin this chapter with a brief review of computer hardware.
+Performance characteristics typical of systems in 2007 are shown in Table 4.1.
+A list of hardware basics that we need in this book to motivate IR system
+design follows.
+
+\u2022 Access to data in memory is much faster than access to data on disk. It
+takes a few clock cycles (perhaps 5 × 10\u22129 seconds) to access a byte in
+memory, but much longer to transfer it from disk (about 2 × 10\u22128 sec-
+onds). Consequently, we want to keep as much data as possible in mem-
+ory, especially those data that we need to access frequently. We call the
+technique of keeping frequently used disk data in main memory caching.CACHING
+
+\u2022 When doing a disk read or write, it takes a while for the disk head to
+move to the part of the disk where the data are located. This time is called
+the seek time and it averages 5 ms for typical disks. No data are beingSEEK TIME
+transferred during the seek. To maximize data transfer rates, chunks of
+data that will be read together should therefore be stored contiguously on
+disk. For example, using the numbers in Table 4.1 it may take as little as
+0.2 seconds to transfer 10 megabytes (MB) from disk to memory if it is
+stored as one chunk, but up to 0.2 + 100× (5× 10\u22123) = 0.7 seconds if it
+is stored in 100 noncontiguous chunks because we need to move the disk
+head up to 100 times.
+
+\u2022 Operating systems generally read and write entire blocks. Thus, reading
+a single byte from disk can take as much time as reading the entire block.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.2 Blocked sort-based indexing 69
+
+Block sizes of 8, 16, 32, and 64 kilobytes (KB) are common. We call the part
+of main memory where a block being read or written is stored a buffer.BUFFER
+
+\u2022 Data transfers from disk to memory are handled by the system bus, not by
+the processor. This means that the processor is available to process data
+during disk I/O. We can exploit this fact to speed up data transfers by
+storing compressed data on disk. Assuming an efficient decompression
+algorithm, the total time of reading and then decompressing compressed
+data is usually less than reading uncompressed data.
+
+\u2022 Servers used in IR systems typically have several gigabytes (GB) of main
+memory, sometimes tens of GB. Available disk space is several orders of
+magnitude larger.
+
+4.2 Blocked sort-based indexing
+
+The basic steps in constructing a nonpositional index are depicted in Fig-
+ure 1.4 (page 8). We first make a pass through the collection assembling all
+term\u2013docID pairs. We then sort the pairs with the term as the dominant key
+and docID as the secondary key. Finally, we organize the docIDs for each
+term into a postings list and compute statistics like term and document fre-
+quency. For small collections, all this can be done in memory. In this chapter,
+we describe methods for large collections that require the use of secondary
+storage.
+
+To make index construction more efficient, we represent terms as termIDs
+(instead of strings as we did in Figure 1.4), where each termID is a uniqueTERMID
+serial number. We can build the mapping from terms to termIDs on the fly
+while we are processing the collection; or, in a two-pass approach, we com-
+pile the vocabulary in the first pass and construct the inverted index in the
+second pass. The index construction algorithms described in this chapter all
+do a single pass through the data. Section 4.7 gives references to multipass
+algorithms that are preferable in certain applications, for example, when disk
+space is scarce.
+
+We work with the Reuters-RCV1 collection as our model collection in thisREUTERS-RCV1
+chapter, a collection with roughly 1 GB of text. It consists of about 800,000
+documents that were sent over the Reuters newswire during a 1-year pe-
+riod between August 20, 1996, and August 19, 1997. A typical document is
+shown in Figure 4.1, but note that we ignore multimedia information like
+images in this book and are only concerned with text. Reuters-RCV1 covers
+a wide range of international topics, including politics, business, sports, and
+(as in this example) science. Some key statistics of the collection are shown
+in Table 4.2.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+70 4 Index construction
+
+\u25ee Table 4.2 Collection statistics for Reuters-RCV1. Values are rounded for the com-
+putations in this book. The unrounded values are: 806,791 documents, 222 tokens
+per document, 391,523 (distinct) terms, 6.04 bytes per token with spaces and punc-
+tuation, 4.5 bytes per token without spaces and punctuation, 7.5 bytes per term, and
+96,969,056 tokens. The numbers in this table correspond to the third line (\u201ccase fold-
+ing\u201d) in Table 5.1 (page 87).
+
+Symbol Statistic Value
+N documents 800,000
+Lave avg. # tokens per document 200
+M terms 400,000
+
+avg. # bytes per token (incl. spaces/punct.) 6
+avg. # bytes per token (without spaces/punct.) 4.5
+avg. # bytes per term 7.5
+
+T tokens 100,000,000
+
+REUTERS
+
+Extreme conditions create rare Antarctic clouds
+
+You are here:  Home > News > Science > Article
+
+Go to a Section:      U.S.     International      Business      Markets Politics Entertainment Technology
+
+Tue Aug 1, 2006 3:20am ET
+
+Email This Article | Print This Article | Reprints
+
+SYDNEY (Reuters) - Rare, mother-of-pearl colored clouds
+
+caused by extreme weather conditions above Antarctica are a
+
+possible indication of global warming, Australian scientists said on
+
+Tuesday.
+
+Known as nacreous clouds, the spectacular formations showing delicate
+
+wisps of colors were photographed in the sky over an Australian
+
+meteorological base at Mawson Station on July 25.
+
+Sports Oddly Enough
+
+[-] Text [+]
+
+\u25ee Figure 4.1 Document from the Reuters newswire.
+
+Reuters-RCV1 has 100 million tokens. Collecting all termID\u2013docID pairs of
+the collection using 4 bytes each for termID and docID therefore requires 0.8
+GB of storage. Typical collections today are often one or two orders of mag-
+nitude larger than Reuters-RCV1. You can easily see how such collections
+overwhelm even large computers if we try to sort their termID\u2013docID pairs
+in memory. If the size of the intermediate files during index construction is
+within a small factor of available memory, then the compression techniques
+introduced in Chapter 5 can help; however, the postings file of many large
+collections cannot fit into memory even after compression.
+
+With main memory insufficient, we need to use an external sorting algo-EXTERNAL SORTING
+ALGORITHM rithm, that is, one that uses disk. For acceptable speed, the central require-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.2 Blocked sort-based indexing 71
+
+BSBINDEXCONSTRUCTION()
+1 n\u2190 0
+2 while (all documents have not been processed)
+3 do n\u2190 n + 1
+4 block\u2190 PARSENEXTBLOCK()
+5 BSBI-INVERT(block)
+6 WRITEBLOCKTODISK(block, fn)
+7 MERGEBLOCKS( f1, . . . , fn; f merged)
+
+\u25ee Figure 4.2 Blocked sort-based indexing. The algorithm stores inverted blocks in
+files f1, . . . , fn and the merged index in f merged.
+
+ment of such an algorithm is that it minimize the number of random disk
+seeks during sorting \u2013 sequential disk reads are far faster than seeks as we
+explained in Section 4.1. One solution is the blocked sort-based indexing algo-BLOCKED SORT-BASED
+
+INDEXING ALGORITHM rithm or BSBI in Figure 4.2. BSBI (i) segments the collection into parts of equal
+size, (ii) sorts the termID\u2013docID pairs of each part in memory, (iii) stores in-
+termediate sorted results on disk, and (iv) merges all intermediate results
+into the final index.
+
+The algorithm parses documents into termID\u2013docID pairs and accumu-
+lates the pairs in memory until a block of a fixed size is full (PARSENEXTBLOCK
+in Figure 4.2). We choose the block size to fit comfortably into memory to
+permit a fast in-memory sort. The block is then inverted and written to disk.
+Inversion involves two steps. First, we sort the termID\u2013docID pairs. Next,INVERSION
+we collect all termID\u2013docID pairs with the same termID into a postings list,
+where a posting is simply a docID. The result, an inverted index for the blockPOSTING
+we have just read, is then written to disk. Applying this to Reuters-RCV1 and
+assuming we can fit 10 million termID\u2013docID pairs into memory, we end up
+with ten blocks, each an inverted index of one part of the collection.
+
+In the final step, the algorithm simultaneously merges the ten blocks into
+one large merged index. An example with two blocks is shown in Figure 4.3,
+where we use di to denote the i
+
+th document of the collection. To do the merg-
+ing, we open all block files simultaneously, and maintain small read buffers
+for the ten blocks we are reading and a write buffer for the final merged in-
+dex we are writing. In each iteration, we select the lowest termID that has
+not been processed yet using a priority queue or a similar data structure. All
+postings lists for this termID are read and merged, and the merged list is
+written back to disk. Each read buffer is refilled from its file when necessary.
+
+How expensive is BSBI? Its time complexity is \u0398(T log T) because the step
+with the highest time complexity is sorting and T is an upper bound for the
+number of items we must sort (i.e., the number of termID\u2013docID pairs). But
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+72 4 Index construction
+
+brutus d1,d3
+
+caesar d1,d2,d4
+
+noble d5
+
+with d1,d2,d3,d5
+
+brutus d6,d7
+
+caesar d8,d9
+
+julius d10
+
+killed d8
+
+postings lists
+to be merged
+
+brutus d1,d3,d6,d7
+
+caesar d1,d2,d4,d8,d9
+
+julius d10
+
+killed d8
+
+noble d5
+
+with d1,d2,d3,d5
+
+merged
+postings lists
+
+disk
+
+\u25ee Figure 4.3 Merging in blocked sort-based indexing. Two blocks (\u201cpostings lists to
+be merged\u201d) are loaded from disk into memory, merged in memory (\u201cmerged post-
+ings lists\u201d) and written back to disk. We show terms instead of termIDs for better
+readability.
+
+the actual indexing time is usually dominated by the time it takes to parse the
+documents (PARSENEXTBLOCK) and to do the final merge (MERGEBLOCKS).
+Exercise 4.6 asks you to compute the total index construction time for RCV1
+that includes these steps as well as inverting the blocks and writing them to
+disk.
+
+Notice that Reuters-RCV1 is not particularly large in an age when one or
+more GB of memory are standard on personal computers. With appropriate
+compression (Chapter 5), we could have created an inverted index for RCV1
+in memory on a not overly beefy server. The techniques we have described
+are needed, however, for collections that are several orders of magnitude
+larger.
+
+? Exercise 4.1If we need T log2 T comparisons (where T is the number of termID\u2013docID pairs) and
+two disk seeks for each comparison, how much time would index construction for
+Reuters-RCV1 take if we used disk instead of memory for storage and an unopti-
+mized sorting algorithm (i.e., not an external sorting algorithm)? Use the system
+parameters in Table 4.1.
+
+Exercise 4.2 [\u22c6]
+
+How would you create the dictionary in blocked sort-based indexing on the fly to
+avoid an extra pass through the data?
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.3 Single-pass in-memory indexing 73
+
+SPIMI-INVERT(token_stream)
+1 output_ f ile = NEWFILE()
+2 dictionary = NEWHASH()
+3 while (free memory available)
+4 do token\u2190 next(token_stream)
+5 if term(token) /\u2208 dictionary
+6 then postings_list = ADDTODICTIONARY(dictionary, term(token))
+7 else postings_list = GETPOSTINGSLIST(dictionary, term(token))
+8 if f ull(postings_list)
+9 then postings_list = DOUBLEPOSTINGSLIST(dictionary, term(token))
+
+10 ADDTOPOSTINGSLIST(postings_list, docID(token))
+11 sorted_terms\u2190 SORTTERMS(dictionary)
+12 WRITEBLOCKTODISK(sorted_terms, dictionary, output_ f ile)
+13 return output_ f ile
+
+\u25ee Figure 4.4 Inversion of a block in single-pass in-memory indexing
+
+4.3 Single-pass in-memory indexing
+
+Blocked sort-based indexing has excellent scaling properties, but it needs
+a data structure for mapping terms to termIDs. For very large collections,
+this data structure does not fit into memory. A more scalable alternative is
+single-pass in-memory indexing or SPIMI. SPIMI uses terms instead of termIDs,SINGLE-PASS
+
+IN-MEMORY INDEXING writes each block\u2019s dictionary to disk, and then starts a new dictionary for the
+next block. SPIMI can index collections of any size as long as there is enough
+disk space available.
+
+The SPIMI algorithm is shown in Figure 4.4. The part of the algorithm that
+parses documents and turns them into a stream of term\u2013docID pairs, which
+we call tokens here, has been omitted. SPIMI-INVERT is called repeatedly on
+the token stream until the entire collection has been processed.
+
+Tokens are processed one by one (line 4) during each successive call of
+SPIMI-INVERT. When a term occurs for the first time, it is added to the
+dictionary (best implemented as a hash), and a new postings list is created
+(line 6). The call in line 7 returns this postings list for subsequent occurrences
+of the term.
+
+A difference between BSBI and SPIMI is that SPIMI adds a posting di-
+rectly to its postings list (line 10). Instead of first collecting all termID\u2013docID
+pairs and then sorting them (as we did in BSBI), each postings list is dynamic
+(i.e., its size is adjusted as it grows) and it is immediately available to collect
+postings. This has two advantages: It is faster because there is no sorting
+required, and it saves memory because we keep track of the term a postings
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+74 4 Index construction
+
+list belongs to, so the termIDs of postings need not be stored. As a result, the
+blocks that individual calls of SPIMI-INVERT can process are much larger
+and the index construction process as a whole is more efficient.
+
+Because we do not know how large the postings list of a term will be when
+we first encounter it, we allocate space for a short postings list initially and
+double the space each time it is full (lines 8\u20139). This means that some mem-
+ory is wasted, which counteracts the memory savings from the omission of
+termIDs in intermediate data structures. However, the overall memory re-
+quirements for the dynamically constructed index of a block in SPIMI are
+still lower than in BSBI.
+
+When memory has been exhausted, we write the index of the block (which
+consists of the dictionary and the postings lists) to disk (line 12). We have to
+sort the terms (line 11) before doing this because we want to write postings
+lists in lexicographic order to facilitate the final merging step. If each block\u2019s
+postings lists were written in unsorted order, merging blocks could not be
+accomplished by a simple linear scan through each block.
+
+Each call of SPIMI-INVERT writes a block to disk, just as in BSBI. The last
+step of SPIMI (corresponding to line 7 in Figure 4.2; not shown in Figure 4.4)
+is then to merge the blocks into the final inverted index.
+
+In addition to constructing a new dictionary structure for each block and
+eliminating the expensive sorting step, SPIMI has a third important compo-
+nent: compression. Both the postings and the dictionary terms can be stored
+compactly on disk if we employ compression. Compression increases the ef-
+ficiency of the algorithm further because we can process even larger blocks,
+and because the individual blocks require less space on disk. We refer readers
+to the literature for this aspect of the algorithm (Section 4.7).
+
+The time complexity of SPIMI is \u0398(T) because no sorting of tokens is re-
+quired and all operations are at most linear in the size of the collection.
+
+4.4 Distributed indexing
+
+Collections are often so large that we cannot perform index construction effi-
+ciently on a single machine. This is particularly true of the World Wide Web
+for which we need large computer clusters1 to construct any reasonably sized
+web index. Web search engines, therefore, use distributed indexing algorithms
+for index construction. The result of the construction process is a distributed
+index that is partitioned across several machines \u2013 either according to term
+or according to document. In this section, we describe distributed indexing
+for a term-partitioned index. Most large search engines prefer a document-
+
+1. A cluster in this chapter is a group of tightly coupled computers that work together closely.
+This sense of the word is different from the use of cluster as a group of documents that are
+semantically similar in Chapters 16\u201318.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.4 Distributed indexing 75
+
+partitioned index (which can be easily generated from a term-partitioned
+index). We discuss this topic further in Section 20.3 (page 454).
+
+The distributed index construction method we describe in this section is an
+application of MapReduce, a general architecture for distributed computing.MAPREDUCE
+MapReduce is designed for large computer clusters. The point of a cluster is
+to solve large computing problems on cheap commodity machines or nodes
+that are built from standard parts (processor, memory, disk) as opposed to on
+a supercomputer with specialized hardware. Although hundreds or thou-
+sands of machines are available in such clusters, individual machines can
+fail at any time. One requirement for robust distributed indexing is, there-
+fore, that we divide the work up into chunks that we can easily assign and
+\u2013 in case of failure \u2013 reassign. A master node directs the process of assigningMASTER NODE
+and reassigning tasks to individual worker nodes.
+
+The map and reduce phases of MapReduce split up the computing job
+into chunks that standard machines can process in a short time. The various
+steps of MapReduce are shown in Figure 4.5 and an example on a collection
+consisting of two documents is shown in Figure 4.6. First, the input data,
+in our case a collection of web pages, are split into n splits where the size ofSPLITS
+the split is chosen to ensure that the work can be distributed evenly (chunks
+should not be too large) and efficiently (the total number of chunks we need
+to manage should not be too large); 16 or 64 MB are good sizes in distributed
+indexing. Splits are not preassigned to machines, but are instead assigned
+by the master node on an ongoing basis: As a machine finishes processing
+one split, it is assigned the next one. If a machine dies or becomes a laggard
+due to hardware problems, the split it is working on is simply reassigned to
+another machine.
+
+In general, MapReduce breaks a large computing problem into smaller
+parts by recasting it in terms of manipulation of key-value pairs. For index-KEY-VALUE PAIRS
+ing, a key-value pair has the form (termID,docID). In distributed indexing,
+the mapping from terms to termIDs is also distributed and therefore more
+complex than in single-machine indexing. A simple solution is to maintain
+a (perhaps precomputed) mapping for frequent terms that is copied to all
+nodes and to use terms directly (instead of termIDs) for infrequent terms.
+We do not address this problem here and assume that all nodes share a con-
+sistent term\u2192 termID mapping.
+
+The map phase of MapReduce consists of mapping splits of the input dataMAP PHASE
+to key-value pairs. This is the same parsing task we also encountered in BSBI
+and SPIMI, and we therefore call the machines that execute the map phase
+parsers. Each parser writes its output to local intermediate files, the segmentPARSER
+
+SEGMENT FILE
+files (shown as a-f g-p q-z in Figure 4.5).
+
+For the reduce phase, we want all values for a given key to be stored closeREDUCE PHASE
+together, so that they can be read and processed quickly. This is achieved by
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+76 4 Index construction
+
+masterassign
+
+map
+phase
+
+reduce
+phase
+
+assign
+
+parser
+
+splits
+
+parser
+
+parser
+
+inverter
+
+postings
+
+inverter
+
+inverter
+
+a-f
+
+g-p
+
+q-z
+
+a-f g-p q-z
+
+a-f g-p q-z
+
+a-f
+
+segment
+files
+
+g-p q-z
+
+\u25ee Figure 4.5 An example of distributed indexing with MapReduce. Adapted from
+Dean and Ghemawat (2004).
+
+partitioning the keys into j term partitions and having the parsers write key-
+value pairs for each term partition into a separate segment file. In Figure 4.5,
+the term partitions are according to first letter: a\u2013f, g\u2013p, q\u2013z, and j = 3. (We
+chose these key ranges for ease of exposition. In general, key ranges need not
+correspond to contiguous terms or termIDs.) The term partitions are defined
+by the person who operates the indexing system (Exercise 4.10). The parsers
+then write corresponding segment files, one for each term partition. Each
+term partition thus corresponds to r segments files, where r is the number
+of parsers. For instance, Figure 4.5 shows three a\u2013f segment files of the a\u2013f
+partition, corresponding to the three parsers shown in the figure.
+
+Collecting all values (here: docIDs) for a given key (here: termID) into one
+list is the task of the inverters in the reduce phase. The master assigns eachINVERTER
+term partition to a different inverter \u2013 and, as in the case of parsers, reas-
+signs term partitions in case of failing or slow inverters. Each term partition
+(corresponding to r segment files, one on each parser) is processed by one in-
+verter. We assume here that segment files are of a size that a single machine
+can handle (Exercise 4.9). Finally, the list of values is sorted for each key and
+written to the final sorted postings list (\u201cpostings\u201d in the figure). (Note that
+postings in Figure 4.6 include term frequencies, whereas each posting in the
+other sections of this chapter is simply a docID without term frequency in-
+formation.) The data flow is shown for a\u2013f in Figure 4.5. This completes the
+construction of the inverted index.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.4 Distributed indexing 77
+
+Schema of map and reduce functions
+
+map: input list(k,v)
+
+reduce: (k,list(v)) output
+
+Instantiation of the schema for index construction
+
+map: web collection list(termID, docID)
+
+reduce: ( termID ,1 list(docID) ,  termID  ,2 list(docID) , . . . ) (postings list list1, postings 2, . . . )
+
+Example for index construction
+
+map: d2 : C died. d1 : C came, C c\u2019ed. ( C, d2 ,  died,d2 ,  C,d1 ,  came,d1 ,  C,d1 ,  \u2329c\u2019ed,d1\u232a)
+
+reduce: ( C,(d2,d1,d1) ,  died,(d2) ,  came,(d1) , c\u2019ed,(d1) ) (\u2329C,(d1:2,d2:1)\u232a,  \u2329died,(d2:1)\u232a,  \u2329came,(d1:1)\u232a,  \u2329c\u2019ed,(d1:1)\u232a )
+
+\u232a \u232a
+
+\u232a \u232a \u232a \u232a
+
+\u232a\u232a\u232a\u232a \u232a
+
+\u2329
+
+\u2329 \u2329
+
+\u2329 \u2329 \u2329
+
+\u2329\u2329\u2329\u2329 \u2329
+
+\u2192
+
+\u2192
+
+\u2192
+
+\u2192
+
+\u2192
+
+\u2192
+
+\u25ee Figure 4.6 Map and reduce functions in MapReduce. In general, the map func-
+tion produces a list of key-value pairs. All values for a key are collected into one
+list in the reduce phase. This list is then processed further. The instantiations of the
+two functions and an example are shown for index construction. Because the map
+phase processes documents in a distributed fashion, termID\u2013docID pairs need not be
+ordered correctly initially as in this example. The example shows terms instead of
+termIDs for better readability. We abbreviate Caesar as C and conquered as c\u2019ed.
+
+Parsers and inverters are not separate sets of machines. The master iden-
+tifies idle machines and assigns tasks to them. The same machine can be a
+parser in the map phase and an inverter in the reduce phase. And there are
+often other jobs that run in parallel with index construction, so in between
+being a parser and an inverter a machine might do some crawling or another
+unrelated task.
+
+To minimize write times before inverters reduce the data, each parser writes
+its segment files to its local disk. In the reduce phase, the master communi-
+cates to an inverter the locations of the relevant segment files (e.g., of the r
+segment files of the a\u2013f partition). Each segment file only requires one se-
+quential read because all data relevant to a particular inverter were written
+to a single segment file by the parser. This setup minimizes the amount of
+network traffic needed during indexing.
+
+Figure 4.6 shows the general schema of the MapReduce functions. In-
+put and output are often lists of key-value pairs themselves, so that several
+MapReduce jobs can run in sequence. In fact, this was the design of the
+Google indexing system in 2004. What we describe in this section corre-
+sponds to only one of five to ten MapReduce operations in that indexing
+system. Another MapReduce operation transforms the term-partitioned in-
+dex we just created into a document-partitioned one.
+
+MapReduce offers a robust and conceptually simple framework for imple-
+menting index construction in a distributed environment. By providing a
+semiautomatic method for splitting index construction into smaller tasks, it
+can scale to almost arbitrarily large collections, given computer clusters of
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+78 4 Index construction
+
+sufficient size.
+
+? Exercise 4.3For n = 15 splits, r = 10 segments, and j = 3 term partitions, how long would
+distributed index creation take for Reuters-RCV1 in a MapReduce architecture? Base
+your assumptions about cluster machines on Table 4.1.
+
+4.5 Dynamic indexing
+
+Thus far, we have assumed that the document collection is static. This is fine
+for collections that change infrequently or never (e.g., the Bible or Shake-
+speare). But most collections are modified frequently with documents being
+added, deleted, and updated. This means that new terms need to be added
+to the dictionary, and postings lists need to be updated for existing terms.
+
+The simplest way to achieve this is to periodically reconstruct the index
+from scratch. This is a good solution if the number of changes over time is
+small and a delay in making new documents searchable is acceptable \u2013 and
+if enough resources are available to construct a new index while the old one
+is still available for querying.
+
+If there is a requirement that new documents be included quickly, one solu-
+tion is to maintain two indexes: a large main index and a small auxiliary indexAUXILIARY INDEX
+that stores new documents. The auxiliary index is kept in memory. Searches
+are run across both indexes and results merged. Deletions are stored in an in-
+validation bit vector. We can then filter out deleted documents before return-
+ing the search result. Documents are updated by deleting and reinserting
+them.
+
+Each time the auxiliary index becomes too large, we merge it into the main
+index. The cost of this merging operation depends on how we store the index
+in the file system. If we store each postings list as a separate file, then the
+merge simply consists of extending each postings list of the main index by
+the corresponding postings list of the auxiliary index. In this scheme, the
+reason for keeping the auxiliary index is to reduce the number of disk seeks
+required over time. Updating each document separately requires up to Mave
+disk seeks, where Mave is the average size of the vocabulary of documents in
+the collection. With an auxiliary index, we only put additional load on the
+disk when we merge auxiliary and main indexes.
+
+Unfortunately, the one-file-per-postings-list scheme is infeasible because
+most file systems cannot efficiently handle very large numbers of files. The
+simplest alternative is to store the index as one large file, that is, as a concate-
+nation of all postings lists. In reality, we often choose a compromise between
+the two extremes (Section 4.7). To simplify the discussion, we choose the
+simple option of storing the index as one large file here.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.5 Dynamic indexing 79
+
+LMERGEADDTOKEN(indexes, Z0, token)
+1 Z0 \u2190 MERGE(Z0, {token})
+2 if |Z0| = n
+3 then for i\u2190 0 to \u221e
+4 do if Ii \u2208 indexes
+5 then Zi+1 \u2190 MERGE(Ii, Zi)
+6 (Zi+1 is a temporary index on disk.)
+7 indexes\u2190 indexes\u2212 {Ii}
+8 else Ii \u2190 Zi (Zi becomes the permanent index Ii.)
+9 indexes\u2190 indexes \u222a {Ii}
+
+10 BREAK
+11 Z0 \u2190 \u2205
+
+LOGARITHMICMERGE()
+1 Z0 \u2190 \u2205 (Z0 is the in-memory index.)
+2 indexes\u2190 \u2205
+3 while true
+4 do LMERGEADDTOKEN(indexes, Z0, GETNEXTTOKEN())
+
+\u25ee Figure 4.7 Logarithmic merging. Each token (termID,docID) is initially added to
+in-memory index Z0 by LMERGEADDTOKEN. LOGARITHMICMERGE initializes Z0
+and indexes.
+
+In this scheme, we process each posting \u230aT/n\u230b times because we touch it
+during each of \u230aT/n\u230bmerges where n is the size of the auxiliary index and T
+the total number of postings. Thus, the overall time complexity is \u0398(T2/n).
+(We neglect the representation of terms here and consider only the docIDs.
+For the purpose of time complexity, a postings list is simply a list of docIDs.)
+
+We can do better than \u0398(T2/n) by introducing log2(T/n) indexes I0, I1,
+
+I2, . . . of size 2
+0 × n, 21 × n, 22 × n . . . . Postings percolate up this sequence of
+
+indexes and are processed only once on each level. This scheme is called log-LOGARITHMIC
+MERGING arithmic merging (Figure 4.7). As before, up to n postings are accumulated in
+
+an in-memory auxiliary index, which we call Z0. When the limit n is reached,
+the 20 × n postings in Z0 are transferred to a new index I0 that is created on
+disk. The next time Z0 is full, it is merged with I0 to create an index Z1 of size
+21× n. Then Z1 is either stored as I1 (if there isn\u2019t already an I1) or merged
+with I1 into Z2 (if I1 exists); and so on. We service search requests by query-
+ing in-memory Z0 and all currently valid indexes Ii on disk and merging the
+results. Readers familiar with the binomial heap data structure2 will recog-
+
+2. See, for example, (Cormen et al. 1990, Chapter 19).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+80 4 Index construction
+
+nize its similarity with the structure of the inverted indexes in logarithmic
+merging.
+
+Overall index construction time is \u0398(T log(T/n)) because each posting
+is processed only once on each of the log(T/n) levels. We trade this effi-
+ciency gain for a slow down of query processing; we now need to merge
+results from log(T/n) indexes as opposed to just two (the main and auxil-
+iary indexes). As in the auxiliary index scheme, we still need to merge very
+large indexes occasionally (which slows down the search system during the
+merge), but this happens less frequently and the indexes involved in a merge
+on average are smaller.
+
+Having multiple indexes complicates the maintenance of collection-wide
+statistics. For example, it affects the spelling correction algorithm in Sec-
+tion 3.3 (page 56) that selects the corrected alternative with the most hits.
+With multiple indexes and an invalidation bit vector, the correct number of
+hits for a term is no longer a simple lookup. In fact, all aspects of an IR
+system \u2013 index maintenance, query processing, distribution, and so on \u2013 are
+more complex in logarithmic merging.
+
+Because of this complexity of dynamic indexing, some large search engines
+adopt a reconstruction-from-scratch strategy. They do not construct indexes
+dynamically. Instead, a new index is built from scratch periodically. Query
+processing is then switched from the new index and the old index is deleted.
+
+? Exercise 4.4For n = 2 and 1 \u2264 T \u2264 30, perform a step-by-step simulation of the algorithm in
+Figure 4.7. Create a table that shows, for each point in time at which T = 2 \u2217 k tokens
+have been processed (1 \u2264 k \u2264 15), which of the three indexes I0, . . . , I3 are in use. The
+first three lines of the table are given below.
+
+I3 I2 I1 I0
+2 0 0 0 0
+4 0 0 0 1
+6 0 0 1 0
+
+4.6 Other types of indexes
+
+This chapter only describes construction of nonpositional indexes. Except
+for the much larger data volume we need to accommodate, the main differ-
+ence for positional indexes is that (termID, docID, (position1, position2, . . . ))
+triples, instead of (termID, docID) pairs have to be processed and that tokens
+and postings contain positional information in addition to docIDs. With this
+change, the algorithms discussed here can all be applied to positional in-
+dexes.
+
+In the indexes we have considered so far, postings lists are ordered with
+respect to docID. As we see in Chapter 5, this is advantageous for compres-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.6 Other types of indexes 81
+
+users
+
+documents
+
+0/1
+doc e., 1 otherwis
+0 if user can\u2019t read
+
+\u25ee Figure 4.8 A user-document matrix for access control lists. Element (i, j) is 1 if
+user i has access to document j and 0 otherwise. During query processing, a user\u2019s
+access postings list is intersected with the results list returned by the text part of the
+index.
+
+sion \u2013 instead of docIDs we can compress smaller gaps between IDs, thus
+reducing space requirements for the index. However, this structure for the
+index is not optimal when we build ranked (Chapters 6 and 7) \u2013 as opposed toRANKED
+Boolean \u2013 retrieval systems. In ranked retrieval, postings are often ordered ac-RETRIEVAL SYSTEMS
+cording to weight or impact, with the highest-weighted postings occurring
+first. With this organization, scanning of long postings lists during query
+processing can usually be terminated early when weights have become so
+small that any further documents can be predicted to be of low similarity
+to the query (see Chapter 6). In a docID-sorted index, new documents are
+always inserted at the end of postings lists. In an impact-sorted index (Sec-
+tion 7.1.5, page 140), the insertion can occur anywhere, thus complicating the
+update of the inverted index.
+
+Securityis an important consideration for retrieval systems in corporations.SECURITY
+A low-level employee should not be able to find the salary roster of the cor-
+poration, but authorized managers need to be able to search for it. Users\u2019
+results lists must not contain documents they are barred from opening; the
+very existence of a document can be sensitive information.
+
+User authorization is often mediated through access control lists or ACLs.ACCESS CONTROL LISTS
+ACLs can be dealt with in an information retrieval system by representing
+each document as the set of users that can access them (Figure 4.8) and then
+inverting the resulting user-document matrix. The inverted ACL index has,
+for each user, a \u201cpostings list\u201d of documents they can access \u2013 the user\u2019s ac-
+cess list. Search results are then intersected with this list. However, such
+an index is difficult to maintain when access permissions change \u2013 we dis-
+cussed these difficulties in the context of incremental indexing for regular
+postings lists in Section 4.5. It also requires the processing of very long post-
+ings lists for users with access to large document subsets. User membership
+is therefore often verified by retrieving access information directly from the
+file system at query time \u2013 even though this slows down retrieval.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+82 4 Index construction
+
+\u25ee Table 4.3 The five steps in constructing an index for Reuters-RCV1 in blocked
+sort-based indexing. Line numbers refer to Figure 4.2.
+
+Step Time
+1 reading of collection (line 4)
+2 10 initial sorts of 107 records each (line 5)
+3 writing of 10 blocks (line 6)
+4 total disk transfer time for merging (line 7)
+5 time of actual merging (line 7)
+
+total
+
+\u25ee Table 4.4 Collection statistics for a large collection.
+
+Symbol Statistic Value
+N # documents 1,000,000,000
+Lave # tokens per document 1000
+M # distinct terms 44,000,000
+
+We discussed indexes for storing and retrieving terms (as opposed to doc-
+uments) in Chapter 3.
+
+? Exercise 4.5Can spelling correction compromise document-level security? Consider the case where
+a spelling correction is based on documents to which the user does not have access.
+
+? Exercise 4.6Total index construction time in blocked sort-based indexing is broken down in Ta-
+ble 4.3. Fill out the time column of the table for Reuters-RCV1 assuming a system
+with the parameters given in Table 4.1.
+
+Exercise 4.7
+
+Repeat Exercise 4.6 for the larger collection in Table 4.4. Choose a block size that is
+realistic for current technology (remember that a block should easily fit into main
+memory). How many blocks do you need?
+
+Exercise 4.8
+
+Assume that we have a collection of modest size whose index can be constructed with
+the simple in-memory indexing algorithm in Figure 1.4 (page 8). For this collection,
+compare memory, disk and time requirements of the simple algorithm in Figure 1.4
+and blocked sort-based indexing.
+
+Exercise 4.9
+
+Assume that machines in MapReduce have 100 GB of disk space each. Assume fur-
+ther that the postings list of the term the has a size of 200 GB. Then the MapReduce
+algorithm as described cannot be run to construct the index. How would you modify
+MapReduce so that it can handle this case?
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+4.7 References and further reading 83
+
+Exercise 4.10
+
+For optimal load balancing, the inverters in MapReduce must get segmented postings
+files of similar sizes. For a new collection, the distribution of key-value pairs may not
+be known in advance. How would you solve this problem?
+
+Exercise 4.11
+
+Apply MapReduce to the problem of counting how often each term occurs in a set of
+files. Specify map and reduce operations for this task. Write down an example along
+the lines of Figure 4.6.
+
+Exercise 4.12
+
+We claimed (on page 80) that an auxiliary index can impair the quality of collec-
+tion statistics. An example is the term weighting method idf, which is defined as
+log(N/dfi) where N is the total number of documents and dfi is the number of docu-
+ments that term i occurs in (Section 6.2.1, page 117). Show that even a small auxiliary
+index can cause significant error in idf when it is computed on the main index only.
+Consider a rare term that suddenly occurs frequently (e.g., Flossie as in Tropical Storm
+Flossie).
+
+4.7 References and further reading
+
+Witten et al. (1999, Chapter 5) present an extensive treatment of the subject of
+index construction and additional indexing algorithms with different trade-
+offs of memory, disk space, and time. In general, blocked sort-based indexing
+does well on all three counts. However, if conserving memory or disk space
+is the main criterion, then other algorithms may be a better choice. See Wit-
+ten et al. (1999), Tables 5.4 and 5.5; BSBI is closest to \u201csort-based multiway
+merge,\u201d but the two algorithms differ in dictionary structure and use of com-
+pression.
+
+Moffat and Bell (1995) show how to construct an index \u201cin situ,\u201d that
+is, with disk space usage close to what is needed for the final index and
+with a minimum of additional temporary files (cf. also Harman and Candela
+(1990)). They give Lesk (1988) and Somogyi (1990) credit for being among
+the first to employ sorting for index construction.
+
+The SPIMI method in Section 4.3 is from (Heinz and Zobel 2003). We have
+simplified several aspects of the algorithm, including compression and the
+fact that each term\u2019s data structure also contains, in addition to the postings
+list, its document frequency and house keeping information. We recommend
+Heinz and Zobel (2003) and Zobel and Moffat (2006) as up-do-date, in-depth
+treatments of index construction. Other algorithms with good scaling prop-
+erties with respect to vocabulary size require several passes through the data,
+e.g., FAST-INV (Fox and Lee 1991, Harman et al. 1992).
+
+The MapReduce architecture was introduced by Dean and Ghemawat (2004).
+An open source implementation of MapReduce is available at http://lucene.apache.org/hadoop/.
+Ribeiro-Neto et al. (1999) and Melnik et al. (2001) describe other approaches
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+84 4 Index construction
+
+to distributed indexing. Introductory chapters on distributed IR are (Baeza-
+Yates and Ribeiro-Neto 1999, Chapter 9) and (Grossman and Frieder 2004,
+Chapter 8). See also Callan (2000).
+
+Lester et al. (2005) and Büttcher and Clarke (2005a) analyze the proper-
+ties of logarithmic merging and compare it with other construction methods.
+One of the first uses of this method was in Lucene (http://lucene.apache.org).
+Other dynamic indexing methods are discussed by Büttcher et al. (2006) and
+Lester et al. (2006). The latter paper also discusses the strategy of replacing
+the old index by one built from scratch.
+
+Heinz et al. (2002) compare data structures for accumulating the vocabu-
+lary in memory. Büttcher and Clarke (2005b) discuss security models for a
+common inverted index for multiple users. A detailed characterization of the
+Reuters-RCV1 collection can be found in (Lewis et al. 2004). NIST distributes
+the collection (see http://trec.nist.gov/data/reuters/reuters.html).
+
+Garcia-Molina et al. (1999, Chapter 2) review computer hardware relevant
+to system design in depth.
+
+An effective indexer for enterprise search needs to be able to communicate
+efficiently with a number of applications that hold text data in corporations,
+including Microsoft Outlook, IBM\u2019s Lotus software, databases like Oracle
+and MySQL, content management systems like Open Text, and enterprise
+resource planning software like SAP.
+
+
+	Index construction
+	Hardware basics
+	Blocked sort-based indexing
+	Single-pass in-memory indexing
+	Distributed indexing
+	Dynamic indexing
+	Other types of indexes
+	References and further reading
+
+

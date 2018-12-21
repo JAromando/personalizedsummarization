@@ -120,10 +120,10 @@ class KLSum(AbstractSummarizer):
         sentProbDoc = 0
         sentProb = 0
         counter = 0
-        parsed = PlaintextParser(sentence, Tokenizer(LANGUAGE))
-        sentence = parsed.document.sentences
-        words = self._get_all_content_words_in_doc(sentence)
-        for word in words:
+        #parsed = PlaintextParser(sentence, Tokenizer(LANGUAGE))
+        #sentence = parsed.document.sentences
+        #words = self._get_all_content_words_in_doc(sentence)
+        for word in sentence:
             counter += 1
             word = word.lower()
             if not word in wordFreqDoc:
@@ -132,8 +132,11 @@ class KLSum(AbstractSummarizer):
                 wordFreqCorpus[word] = 0
             if not word in wordTF:
                 wordTF[word] = 0
-            sentProbDoc += math.log((wordTF.get(word) + 1000 * wordFreqDoc.get(word))/(docLength + 1000))
-            sentProbCorpus += math.log((wordTF.get(word) + 0.5 * (wordFreqCorpus.get(word)/corpusLength))/(docLength + 0.5))
+            #print(word, wordTF.get(word), wordFreqDoc.get(word), wordFreqCorpus.get(word), docLength)
+            sentProbDoc += math.log((wordTF.get(word) + 500 * wordFreqDoc.get(word))/(docLength + 500))
+            sentProbCorpus += math.log((wordTF.get(word) + 5000 * wordFreqCorpus.get(word))/(docLength + 5000))
+            #print(sentProbDoc, sentProbCorpus)
+
 
         if counter > 0:
             sentProbDoc /= counter
@@ -164,8 +167,7 @@ class KLSum(AbstractSummarizer):
 
             sentenceCount = 0
             for s in sentences_as_words:
-                weight = self.computeSentenceWeight(sentences[sentenceCount], wordTF, wordFreq, wordFreqCorpus, docLength, corpusLength)
-                sentenceCount += 1
+                weight = self.computeSentenceWeight(s, wordTF, wordFreq, wordFreqCorpus, docLength, corpusLength)
 
                 # calculates the joint frequency through combining the word lists
                 joint_freq = self._joint_freq(s, summary_as_word_list)

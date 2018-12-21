@@ -95,7 +95,7 @@ def klSummarizationAltered(_parser):
 
 if __name__ == "__main__":
 
-    raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.pdf")
+    '''raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.pdf")
     #raw = parser.from_file("C:/Users/John/Desktop/JAromandoVirginiaTechPersonalStatement.pdf")
 
     tempRaw = raw['content'].splitlines()
@@ -109,9 +109,17 @@ if __name__ == "__main__":
     print(tempRaw)
 
     for i in tempRaw:
-        newRaw = newRaw + '\n' + i
+        newRaw = newRaw + '\n' + i'''
 
-    parser = PlaintextParser.from_file(FILE_LOCATION, Tokenizer(LANGUAGE))
+    raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.pdf")
+
+    txtfile = "C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.txt"
+
+    text_file = open(txtfile, "w", encoding="raw_unicode_escape")
+    text_file.write(raw['content'])
+    text_file.close()
+
+    parser = PlaintextParser.from_file(txtfile, Tokenizer(LANGUAGE))
 
     '''print()
     lsaSummarization(parser)
