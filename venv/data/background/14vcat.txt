@@ -1,0 +1,1820 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Introduction to Information Retrieval
+
+
+Online edition (c)
+2009 Cambridge UP
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+DRAFT! © April 1, 2009 Cambridge University Press. Feedback welcome. 289
+
+14 Vector space classification
+
+The document representation in Naive Bayes is a sequence of terms or a bi-
+
+nary vector \u3008e1, . . . , e|V|\u3009 \u2208 {0, 1}
+|V|. In this chapter we adopt a different
+
+representation for text classification, the vector space model, developed in
+Chapter 6. It represents each document as a vector with one real-valued com-
+ponent, usually a tf-idf weight, for each term. Thus, the document space X,
+
+the domain of the classification function \u03b3, is R|V|. This chapter introduces a
+number of classification methods that operate on real-valued vectors.
+
+The basic hypothesis in using the vector space model for classification is
+the contiguity hypothesis.CONTIGUITY
+
+HYPOTHESIS
+Contiguity hypothesis. Documents in the same class form a contigu-
+ous region and regions of different classes do not overlap.
+
+There are many classification tasks, in particular the type of text classification
+that we encountered in Chapter 13, where classes can be distinguished by
+word patterns. For example, documents in the class China tend to have high
+values on dimensions like Chinese, Beijing, and Mao whereas documents in the
+class UK tend to have high values for London, British and Queen. Documents
+of the two classes therefore form distinct contiguous regions as shown in
+Figure 14.1 and we can draw boundaries that separate them and classify new
+documents. How exactly this is done is the topic of this chapter.
+
+Whether or not a set of documents is mapped into a contiguous region de-
+pends on the particular choices we make for the document representation:
+type of weighting, stop list etc. To see that the document representation is
+crucial, consider the two classes written by a group vs. written by a single per-
+son. Frequent occurrence of the first person pronoun I is evidence for the
+single-person class. But that information is likely deleted from the document
+representation if we use a stop list. If the document representation chosen
+is unfavorable, the contiguity hypothesis will not hold and successful vector
+space classification is not possible.
+
+The same considerations that led us to prefer weighted representations, in
+particular length-normalized tf-idf representations, in Chapters 6 and 7 also
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+290 14 Vector space classification
+
+x
+x
+
+x
+x
+
+\u22c4
+
+\u22c4
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+China
+
+Kenya
+
+UK
+
+\u22c6
+
+\u25ee Figure 14.1 Vector space classification into three classes.
+
+apply here. For example, a term with 5 occurrences in a document should get
+a higher weight than a term with one occurrence, but a weight 5 times larger
+would give too much emphasis to the term. Unweighted and unnormalized
+counts should not be used in vector space classification.
+
+We introduce two vector space classification methods in this chapter, Roc-
+chio and kNN. Rocchio classification (Section 14.2) divides the vector space
+into regions centered on centroids or prototypes, one for each class, computedPROTOTYPE
+as the center of mass of all documents in the class. Rocchio classification is
+simple and efficient, but inaccurate if classes are not approximately spheres
+with similar radii.
+
+kNN or k nearest neighbor classification (Section 14.3) assigns the majority
+class of the k nearest neighbors to a test document. kNN requires no explicit
+training and can use the unprocessed training set directly in classification.
+It is less efficient than other classification methods in classifying documents.
+If the training set is large, then kNN can handle non-spherical and other
+complex classes better than Rocchio.
+
+A large number of text classifiers can be viewed as linear classifiers \u2013 clas-
+sifiers that classify based on a simple linear combination of the features (Sec-
+tion 14.4). Such classifiers partition the space of features into regions sepa-
+rated by linear decision hyperplanes, in a manner to be detailed below. Because
+of the bias-variance tradeoff (Section 14.6) more complex nonlinear models
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.1 Document representations and measures of relatedness in vector spaces 291
+
+d tru
+e
+
+dprojected
+
+x1
+
+x2 x3 x4
+
+x5
+
+x\u20321 x
+\u2032
+2 x
+\u2032
+3 x
+\u2032
+4 x
+
+\u2032
+5
+
+x\u20321 x
+\u2032
+2 x\u20323
+
+x\u20324 x
+\u2032
+5
+
+\u25ee Figure 14.2 Projections of small areas of the unit sphere preserve distances. Left:
+A projection of the 2D semicircle to 1D. For the points x1, x2, x3, x4, x5 at x coordinates
+\u22120.9,\u22120.2, 0, 0.2, 0.9 the distance |x2x3| \u2248 0.201 only differs by 0.5% from |x
+
+\u2032
+2x
+\u2032
+3| =
+
+0.2; but |x1x3|/|x
+\u2032
+1x
+\u2032
+3| = dtrue/dprojected \u2248 1.06/0.9 \u2248 1.18 is an example of a large
+
+distortion (18%) when projecting a large area. Right: The corresponding projection of
+the 3D hemisphere to 2D.
+
+are not systematically better than linear models. Nonlinear models have
+more parameters to fit on a limited amount of training data and are more
+likely to make mistakes for small and noisy data sets.
+
+When applying two-class classifiers to problems with more than two classes,
+there are one-of tasks \u2013 a document must be assigned to exactly one of several
+mutually exclusive classes \u2013 and any-of tasks \u2013 a document can be assigned to
+any number of classes as we will explain in Section 14.5. Two-class classifiers
+solve any-of problems and can be combined to solve one-of problems.
+
+14.1 Document representations and measures of relatedness in vec-
+tor spaces
+
+As in Chapter 6, we represent documents as vectors in R|V| in this chapter.
+To illustrate properties of document vectors in vector classification, we will
+render these vectors as points in a plane as in the example in Figure 14.1.
+In reality, document vectors are length-normalized unit vectors that point
+to the surface of a hypersphere. We can view the 2D planes in our figures
+as projections onto a plane of the surface of a (hyper-)sphere as shown in
+Figure 14.2. Distances on the surface of the sphere and on the projection
+plane are approximately the same as long as we restrict ourselves to small
+areas of the surface and choose an appropriate projection (Exercise 14.1).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+292 14 Vector space classification
+
+Decisions of many vector space classifiers are based on a notion of dis-
+tance, e.g., when computing the nearest neighbors in kNN classification.
+We will use Euclidean distance in this chapter as the underlying distance
+measure. We observed earlier (Exercise 6.18, page 131) that there is a direct
+correspondence between cosine similarity and Euclidean distance for length-
+normalized vectors. In vector space classification, it rarely matters whether
+the relatedness of two documents is expressed in terms of similarity or dis-
+tance.
+
+However, in addition to documents, centroids or averages of vectors also
+play an important role in vector space classification. Centroids are not length-
+normalized. For unnormalized vectors, dot product, cosine similarity and
+Euclidean distance all have different behavior in general (Exercise 14.6). We
+will be mostly concerned with small local regions when computing the sim-
+ilarity between a document and a centroid, and the smaller the region the
+more similar the behavior of the three measures is.
+
+? Exercise 14.1For small areas, distances on the surface of the hypersphere are approximated well
+by distances on its projection (Figure 14.2) because \u03b1 \u2248 sin \u03b1 for small angles. For
+what size angle is the distortion \u03b1/ sin(\u03b1) (i) 1.01, (ii) 1.05 and (iii) 1.1?
+
+14.2 Rocchio classification
+
+Figure 14.1 shows three classes, China, UK and Kenya, in a two-dimensional
+(2D) space. Documents are shown as circles, diamonds and X\u2019s. The bound-
+aries in the figure, which we call decision boundaries, are chosen to separateDECISION BOUNDARY
+the three classes, but are otherwise arbitrary. To classify a new document,
+depicted as a star in the figure, we determine the region it occurs in and as-
+sign it the class of that region \u2013 China in this case. Our task in vector space
+classification is to devise algorithms that compute good boundaries where
+\u201cgood\u201d means high classification accuracy on data unseen during training.
+
+Perhaps the best-known way of computing good class boundaries is Roc-ROCCHIO
+CLASSIFICATION chio classification, which uses centroids to define the boundaries. The centroid
+
+CENTROID of a class c is computed as the vector average or center of mass of its mem-
+bers:
+
+~µ(c) =
+1
+
+|Dc|
+\u2211
+
+d\u2208Dc
+
+~v(d)(14.1)
+
+where Dc is the set of documents in D whose class is c: Dc = {d : \u3008d, c\u3009 \u2208 D}.
+We denote the normalized vector of d by ~v(d) (Equation (6.11), page 122).
+Three example centroids are shown as solid circles in Figure 14.3.
+
+The boundary between two classes in Rocchio classification is the set of
+points with equal distance from the two centroids. For example, |a1| = |a2|,
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.2 Rocchio classification 293
+
+x
+x
+
+x
+x
+
+\u22c4
+
+\u22c4
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+China
+
+Kenya
+
+UK
+
+\u22c6 a1
+
+a2
+
+b1
+
+b2
+
+c1
+
+c2
+
+\u25ee Figure 14.3 Rocchio classification.
+
+|b1| = |b2|, and |c1| = |c2| in the figure. This set of points is always a line.
+The generalization of a line in M-dimensional space is a hyperplane, which
+we define as the set of points ~x that satisfy:
+
+~wT~x = b(14.2)
+
+where ~w is the M-dimensional normal vector1 of the hyperplane and b is aNORMAL VECTOR
+constant. This definition of hyperplanes includes lines (any line in 2D can
+be defined by w1x1 + w2x2 = b) and 2-dimensional planes (any plane in 3D
+can be defined by w1x1 + w2x2 + w3x3 = b). A line divides a plane in two,
+a plane divides 3-dimensional space in two, and hyperplanes divide higher-
+dimensional spaces in two.
+
+Thus, the boundaries of class regions in Rocchio classification are hyper-
+planes. The classification rule in Rocchio is to classify a point in accordance
+with the region it falls into. Equivalently, we determine the centroid~µ(c) that
+the point is closest to and then assign it to c. As an example, consider the star
+in Figure 14.3. It is located in the China region of the space and Rocchio
+therefore assigns it to China. We show the Rocchio algorithm in pseudocode
+in Figure 14.4.
+
+1. Recall from basic linear algebra that ~v · ~w = ~vT~w, i.e., the dot product of ~v and ~w equals the
+product by matrix multiplication of the transpose of ~v and ~w.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+294 14 Vector space classification
+
+term weights
+vector Chinese Japan Tokyo Macao Beijing Shanghai
+~d1 0 0 0 0 1.0 0
+~d2 0 0 0 0 0 1.0
+~d3 0 0 0 1.0 0 0
+~d4 0 0.71 0.71 0 0 0
+~d5 0 0.71 0.71 0 0 0
+~µc 0 0 0 0.33 0.33 0.33
+~µc 0 0.71 0.71 0 0 0
+
+\u25ee Table 14.1 Vectors and class centroids for the data in Table 13.1.
+
+\u270e Example 14.1: Table 14.1 shows the tf-idf vector representations of the five docu-ments in Table 13.1 (page 261), using the formula (1 + log10 tft,d) log10(4/dft) if tft,d >
+0 (Equation (6.14), page 127). The two class centroids are µc = 1/3 · (~d1 + ~d2 + ~d3)
+
+and µc = 1/1 · (~d4). The distances of the test document from the centroids are
+
+|µc \u2212 ~d5| \u2248 1.15 and |µc \u2212 ~d5| = 0.0. Thus, Rocchio assigns d5 to c.
+The separating hyperplane in this case has the following parameters:
+
+~w \u2248 (0 \u2212 0.71 \u2212 0.71 1/3 1/3 1/3)T
+
+b = \u22121/3
+
+See Exercise 14.15 for how to compute ~w and b. We can easily verify that this hy-
+
+perplane separates the documents as desired: ~wT ~d1 \u2248 0 · 0 +\u22120.71 · 0 +\u22120.71 · 0 +
+
+1/3 · 0 + 1/3 · 1.0 + 1/3 · 0 = 1/3 > b (and, similarly, ~wT~di > b for i = 2 and i = 3)
+
+and ~wT ~d4 = \u22121 < b. Thus, documents in c are above the hyperplane (~w
+T~d > b) and
+
+documents in c are below the hyperplane (~wT~d < b).
+
+The assignment criterion in Figure 14.4 is Euclidean distance (APPLYROC-
+CHIO, line 1). An alternative is cosine similarity:
+
+Assign d to class c = arg max
+c\u2032
+
+cos(~µ(c\u2032),~v(d))
+
+As discussed in Section 14.1, the two assignment criteria will sometimes
+make different classification decisions. We present the Euclidean distance
+variant of Rocchio classification here because it emphasizes Rocchio\u2019s close
+correspondence to K-means clustering (Section 16.4, page 360).
+
+Rocchio classification is a form of Rocchio relevance feedback (Section 9.1.1,
+page 178). The average of the relevant documents, corresponding to the most
+important component of the Rocchio vector in relevance feedback (Equa-
+tion (9.3), page 182), is the centroid of the \u201cclass\u201d of relevant documents.
+We omit the query component of the Rocchio formula in Rocchio classifica-
+tion since there is no query in text classification. Rocchio classification can be
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.2 Rocchio classification 295
+
+TRAINROCCHIO(C, D)
+1 for each cj \u2208 C
+2 do Dj \u2190 {d : \u3008d, cj\u3009 \u2208 D}
+
+3 ~µj \u2190
+1
+|Dj|
+
+\u2211d\u2208Dj ~v(d)
+
+4 return {~µ1, . . . ,~µJ}
+
+APPLYROCCHIO({~µ1, . . . ,~µJ}, d)
+1 return arg minj |~µj \u2212~v(d)|
+
+\u25ee Figure 14.4 Rocchio classification: Training and testing.
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+a
+
+a
+
+a
+
+a
+a
+
+a
+a
+
+a a
+
+aa
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+
+a
+a
+
+a
+a
+
+aa
+
+a
+a
+
+a
+a
+
+a
+
+b
+b
+
+b
+b
+
+b
+b
+
+b
+b
+
+b
+
+b
+
+b
+b
+b
+
+b
+
+b
+
+b
+
+b
+
+b
+
+b
+
+X XA
+
+B
+
+o
+
+\u25ee Figure 14.5 The multimodal class \u201ca\u201d consists of two different clusters (small
+upper circles centered on X\u2019s). Rocchio classification will misclassify \u201co\u201d as \u201ca\u201d
+because it is closer to the centroid A of the \u201ca\u201d class than to the centroid B of the \u201cb\u201d
+class.
+
+applied to J > 2 classes whereas Rocchio relevance feedback is designed to
+distinguish only two classes, relevant and nonrelevant.
+
+In addition to respecting contiguity, the classes in Rocchio classification
+must be approximate spheres with similar radii. In Figure 14.3, the solid
+square just below the boundary between UK and Kenya is a better fit for the
+class UK since UK is more scattered than Kenya. But Rocchio assigns it to
+Kenya because it ignores details of the distribution of points in a class and
+only uses distance from the centroid for classification.
+
+The assumption of sphericity also does not hold in Figure 14.5. We can-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+296 14 Vector space classification
+
+mode time complexity
+training \u0398(|D|Lave + |C||V|)
+testing \u0398(La + |C|Ma) = \u0398(|C|Ma)
+
+\u25ee Table 14.2 Training and test times for Rocchio classification. Lave is the average
+number of tokens per document. La and Ma are the numbers of tokens and types,
+respectively, in the test document. Computing Euclidean distance between the class
+centroids and a document is \u0398(|C|Ma).
+
+not represent the \u201ca\u201d class well with a single prototype because it has two
+clusters. Rocchio often misclassifies this type of multimodal class. A text clas-MULTIMODAL CLASS
+sification example for multimodality is a country like Burma, which changed
+its name to Myanmar in 1989. The two clusters before and after the name
+change need not be close to each other in space. We also encountered the
+problem of multimodality in relevance feedback (Section 9.1.2, page 184).
+
+Two-class classification is another case where classes are rarely distributed
+like spheres with similar radii. Most two-class classifiers distinguish between
+a class like China that occupies a small region of the space and its widely
+scattered complement. Assuming equal radii will result in a large number
+of false positives. Most two-class classification problems therefore require a
+modified decision rule of the form:
+
+Assign d to class c iff |~µ(c)\u2212~v(d)| < |~µ(c)\u2212~v(d)| \u2212 b
+
+for a positive constant b. As in Rocchio relevance feedback, the centroid of
+the negative documents is often not used at all, so that the decision criterion
+simplifies to |~µ(c)\u2212~v(d)| < b\u2032 for a positive constant b\u2032.
+
+Table 14.2 gives the time complexity of Rocchio classification.2 Adding all
+documents to their respective (unnormalized) centroid is \u0398(|D|Lave) (as op-
+posed to \u0398(|D||V|)) since we need only consider non-zero entries. Dividing
+each vector sum by the size of its class to compute the centroid is \u0398(|V|).
+Overall, training time is linear in the size of the collection (cf. Exercise 13.1).
+Thus, Rocchio classification and Naive Bayes have the same linear training
+time complexity.
+
+In the next section, we will introduce another vector space classification
+method, kNN, that deals better with classes that have non-spherical, discon-
+nected or other irregular shapes.
+
+? Exercise 14.2 [\u22c6]Show that Rocchio classification can assign a label to a document that is different from
+its training set label.
+
+2. We write \u0398(|D|Lave) for \u0398(T) and assume that the length of test documents is bounded as
+we did on page 262.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.3 k nearest neighbor 297
+
+x
+
+x
+
+x
+x
+
+x
+
+x
+x
+
+x
+x x
+
+x
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+
+\u22c4
+\u22c4
+
+\u22c4
+
+\u22c4 \u22c4
+
+\u22c6
+
+\u25ee Figure 14.6 Voronoi tessellation and decision boundaries (double lines) in 1NN
+classification. The three classes are: X, circle and diamond.
+
+14.3 k nearest neighbor
+
+Unlike Rocchio, k nearest neighbor or kNN classification determines the deci-k NEAREST NEIGHBOR
+CLASSIFICATION sion boundary locally. For 1NN we assign each document to the class of its
+
+closest neighbor. For kNN we assign each document to the majority class of
+its k closest neighbors where k is a parameter. The rationale of kNN classifi-
+cation is that, based on the contiguity hypothesis, we expect a test document
+d to have the same label as the training documents located in the local region
+surrounding d.
+
+Decision boundaries in 1NN are concatenated segments of the Voronoi tes-VORONOI
+TESSELLATION sellation as shown in Figure 14.6. The Voronoi tessellation of a set of objects
+
+decomposes space into Voronoi cells, where each object\u2019s cell consists of all
+points that are closer to the object than to other objects. In our case, the ob-
+jects are documents. The Voronoi tessellation then partitions the plane into
+|D| convex polygons, each containing its corresponding document (and no
+other) as shown in Figure 14.6, where a convex polygon is a convex region in
+2-dimensional space bounded by lines.
+
+For general k \u2208 N in kNN, consider the region in the space for which the
+set of k nearest neighbors is the same. This again is a convex polygon and the
+space is partitioned into convex polygons, within each of which the set of k
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+298 14 Vector space classification
+
+TRAIN-KNN(C, D)
+1 D\u2032 \u2190 PREPROCESS(D)
+2 k\u2190 SELECT-K(C, D\u2032)
+3 return D\u2032, k
+
+APPLY-KNN(C, D\u2032, k, d)
+1 Sk \u2190 COMPUTENEARESTNEIGHBORS(D
+
+\u2032, k, d)
+2 for each cj \u2208 C
+3 do pj \u2190 |Sk \u2229 cj|/k
+4 return arg maxj pj
+
+\u25ee Figure 14.7 kNN training (with preprocessing) and testing. pj is an estimate for
+P(cj|Sk) = P(cj |d). cj denotes the set of all documents in the class cj.
+
+nearest neighbors is invariant (Exercise 14.11).3
+
+1NN is not very robust. The classification decision of each test document
+relies on the class of a single training document, which may be incorrectly
+labeled or atypical. kNN for k > 1 is more robust. It assigns documents to
+the majority class of their k closest neighbors, with ties broken randomly.
+
+There is a probabilistic version of this kNN classification algorithm. We
+can estimate the probability of membership in class c as the proportion of the
+k nearest neighbors in c. Figure 14.6 gives an example for k = 3. Probabil-
+ity estimates for class membership of the star are P\u0302(circle class|star) = 1/3,
+P\u0302(X class|star) = 2/3, and P\u0302(diamond class|star) = 0. The 3nn estimate
+(P\u03021(circle class|star) = 1/3) and the 1nn estimate (P\u03021(circle class|star) = 1)
+differ with 3nn preferring the X class and 1nn preferring the circle class .
+
+The parameter k in kNN is often chosen based on experience or knowledge
+about the classification problem at hand. It is desirable for k to be odd to
+make ties less likely. k = 3 and k = 5 are common choices, but much larger
+values between 50 and 100 are also used. An alternative way of setting the
+parameter is to select the k that gives best results on a held-out portion of the
+training set.
+
+We can also weight the \u201cvotes\u201d of the k nearest neighbors by their cosine
+
+3. The generalization of a polygon to higher dimensions is a polytope. A polytope is a region
+in M-dimensional space bounded by (M\u2212 1)-dimensional hyperplanes. In M dimensions, the
+decision boundaries for kNN consist of segments of (M\u2212 1)-dimensional hyperplanes that form
+the Voronoi tessellation into convex polytopes for the training set of documents. The decision
+criterion of assigning a document to the majority class of its k nearest neighbors applies equally
+to M = 2 (tessellation into polygons) and M > 2 (tessellation into polytopes).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.3 k nearest neighbor 299
+
+kNN with preprocessing of training set
+training \u0398(|D|Lave)
+testing \u0398(La + |D|MaveMa) = \u0398(|D|MaveMa)
+
+kNN without preprocessing of training set
+training \u0398(1)
+testing \u0398(La + |D|Lave Ma) = \u0398(|D|Lave Ma)
+
+\u25ee Table 14.3 Training and test times for kNN classification. Mave is the average size
+of the vocabulary of documents in the collection.
+
+similarity. In this scheme, a class\u2019s score is computed as:
+
+score(c, d) = \u2211
+d\u2032\u2208Sk(d)
+
+Ic(d
+\u2032) cos(~v(d\u2032),~v(d))
+
+where Sk(d) is the set of d\u2019s k nearest neighbors and Ic(d
+\u2032) = 1 iff d\u2032 is in class
+
+c and 0 otherwise. We then assign the document to the class with the highest
+score. Weighting by similarities is often more accurate than simple voting.
+For example, if two classes have the same number of neighbors in the top k,
+the class with the more similar neighbors wins.
+
+Figure 14.7 summarizes the kNN algorithm.
+
+\u270e Example 14.2: The distances of the test document from the four training docu-ments in Table 14.1 are |~d1 \u2212 ~d5| = |~d2 \u2212 ~d5| = |~d3 \u2212 ~d5| \u2248 1.41 and |~d4 \u2212 ~d5| = 0.0.
+d5\u2019s nearest neighbor is therefore d4 and 1NN assigns d5 to d4\u2019s class, c.
+
+\u2704 14.3.1 Time complexity and optimality of kNNTable 14.3 gives the time complexity of kNN. kNN has properties that are
+quite different from most other classification algorithms. Training a kNN
+classifier simply consists of determining k and preprocessing documents. In
+fact, if we preselect a value for k and do not preprocess, then kNN requires
+no training at all. In practice, we have to perform preprocessing steps like
+tokenization. It makes more sense to preprocess training documents once
+as part of the training phase rather than repeatedly every time we classify a
+new test document.
+
+Test time is \u0398(|D|MaveMa) for kNN. It is linear in the size of the training
+set as we need to compute the distance of each training document from the
+test document. Test time is independent of the number of classes J. kNN
+therefore has a potential advantage for problems with large J.
+
+In kNN classification, we do not perform any estimation of parameters as
+we do in Rocchio classification (centroids) or in Naive Bayes (priors and con-
+ditional probabilities). kNN simply memorizes all examples in the training
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+300 14 Vector space classification
+
+set and then compares the test document to them. For this reason, kNN is
+also called memory-based learning or instance-based learning. It is usually desir-MEMORY-BASED
+
+LEARNING able to have as much training data as possible in machine learning. But in
+kNN large training sets come with a severe efficiency penalty in classifica-
+tion.
+
+Can kNN testing be made more efficient than \u0398(|D|MaveMa) or, ignoring
+the length of documents, more efficient than \u0398(|D|)? There are fast kNN
+algorithms for small dimensionality M (Exercise 14.12). There are also ap-
+proximations for large M that give error bounds for specific efficiency gains
+(see Section 14.7). These approximations have not been extensively tested
+for text classification applications, so it is not clear whether they can achieve
+much better efficiency than \u0398(|D|) without a significant loss of accuracy.
+
+The reader may have noticed the similarity between the problem of finding
+nearest neighbors of a test document and ad hoc retrieval, where we search
+for the documents with the highest similarity to the query (Section 6.3.2,
+page 123). In fact, the two problems are both k nearest neighbor problems
+and only differ in the relative density of (the vector of) the test document
+in kNN (10s or 100s of non-zero entries) versus the sparseness of (the vec-
+tor of) the query in ad hoc retrieval (usually fewer than 10 non-zero entries).
+We introduced the inverted index for efficient ad hoc retrieval in Section 1.1
+(page 6). Is the inverted index also the solution for efficient kNN?
+
+An inverted index restricts a search to those documents that have at least
+one term in common with the query. Thus in the context of kNN, the in-
+verted index will be efficient if the test document has no term overlap with a
+large number of training documents. Whether this is the case depends on the
+classification problem. If documents are long and no stop list is used, then
+less time will be saved. But with short documents and a large stop list, an
+inverted index may well cut the average test time by a factor of 10 or more.
+
+The search time in an inverted index is a function of the length of the post-
+ings lists of the terms in the query. Postings lists grow sublinearly with the
+length of the collection since the vocabulary increases according to Heaps\u2019
+law \u2013 if the probability of occurrence of some terms increases, then the prob-
+ability of occurrence of others must decrease. However, most new terms are
+infrequent. We therefore take the complexity of inverted index search to be
+\u0398(T) (as discussed in Section 2.4.2, page 41) and, assuming average docu-
+ment length does not change over time, \u0398(T) = \u0398(|D|).
+
+As we will see in the next chapter, kNN\u2019s effectiveness is close to that of the
+most accurate learning methods in text classification (Table 15.2, page 334). A
+measure of the quality of a learning method is its Bayes error rate, the averageBAYES ERROR RATE
+error rate of classifiers learned by it for a particular problem. kNN is not
+optimal for problems with a non-zero Bayes error rate \u2013 that is, for problems
+where even the best possible classifier has a non-zero classification error. The
+error of 1NN is asymptotically (as the training set increases) bounded by
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.4 Linear versus nonlinear classifiers 301
+
+\u25ee Figure 14.8 There are an infinite number of hyperplanes that separate two linearly
+separable classes.
+
+twice the Bayes error rate. That is, if the optimal classifier has an error rate
+of x, then 1NN has an asymptotic error rate of less than 2x. This is due to the
+effect of noise \u2013 we already saw one example of noise in the form of noisy
+features in Section 13.5 (page 271), but noise can also take other forms as we
+will discuss in the next section. Noise affects two components of kNN: the
+test document and the closest training document. The two sources of noise
+are additive, so the overall error of 1NN is twice the optimal error rate. For
+problems with Bayes error rate 0, the error rate of 1NN will approach 0 as
+the size of the training set increases.
+
+? Exercise 14.3Explain why kNN handles multimodal classes better than Rocchio.
+14.4 Linear versus nonlinear classifiers
+
+In this section, we show that the two learning methods Naive Bayes and
+Rocchio are instances of linear classifiers, the perhaps most important group
+of text classifiers, and contrast them with nonlinear classifiers. To simplify
+the discussion, we will only consider two-class classifiers in this section and
+define a linear classifier as a two-class classifier that decides class membershipLINEAR CLASSIFIER
+by comparing a linear combination of the features to a threshold.
+
+In two dimensions, a linear classifier is a line. Five examples are shown
+in Figure 14.8. These lines have the functional form w1x1 + w2x2 = b. The
+classification rule of a linear classifier is to assign a document to c if w1x1 +
+w2x2 > b and to c if w1x1 + w2x2 \u2264 b. Here, (x1, x2)
+
+T is the two-dimensional
+vector representation of the document and (w1, w2)
+
+T is the parameter vector
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+302 14 Vector space classification
+
+APPLYLINEARCLASSIFIER(~w, b,~x)
+1 score\u2190 \u2211Mi=1 wixi
+2 if score > b
+3 then return 1
+4 else return 0
+
+\u25ee Figure 14.9 Linear classification algorithm.
+
+that defines (together with b) the decision boundary. An alternative geomet-
+ric interpretation of a linear classifier is provided in Figure 15.7 (page 343).
+
+We can generalize this 2D linear classifier to higher dimensions by defining
+a hyperplane as we did in Equation (14.2), repeated here as Equation (14.3):
+
+~wT~x = b(14.3)
+
+The assignment criterion then is: assign to c if ~wT~x > b and to c if ~wT~x \u2264 b.
+We call a hyperplane that we use as a linear classifier a decision hyperplane.DECISION HYPERPLANE
+
+The corresponding algorithm for linear classification in M dimensions is
+shown in Figure 14.9. Linear classification at first seems trivial given the
+simplicity of this algorithm. However, the difficulty is in training the lin-
+ear classifier, that is, in determining the parameters ~w and b based on the
+training set. In general, some learning methods compute much better param-
+eters than others where our criterion for evaluating the quality of a learning
+method is the effectiveness of the learned linear classifier on new data.
+
+We now show that Rocchio and Naive Bayes are linear classifiers. To see
+this for Rocchio, observe that a vector ~x is on the decision boundary if it has
+equal distance to the two class centroids:
+
+|~µ(c1)\u2212~x| = |~µ(c2)\u2212~x|(14.4)
+
+Some basic arithmetic shows that this corresponds to a linear classifier with
+normal vector ~w = ~µ(c1) \u2212 ~µ(c2) and b = 0.5 \u2217 (|~µ(c1)|
+
+2 \u2212 |~µ(c2)|
+2) (Exer-
+
+cise 14.15).
+We can derive the linearity of Naive Bayes from its decision rule, which
+
+chooses the category c with the largest P\u0302(c|d) (Figure 13.2, page 260) where:
+
+P\u0302(c|d) \u221d P\u0302(c) \u220f
+1\u2264k\u2264nd
+
+P\u0302(tk|c)
+
+and nd is the number of tokens in the document that are part of the vocabu-
+lary. Denoting the complement category as c\u0304, we obtain for the log odds:
+
+log
+P\u0302(c|d)
+
+P\u0302(c\u0304|d)
+= log
+
+P\u0302(c)
+
+P\u0302(c\u0304)
++ \u2211
+
+1\u2264k\u2264nd
+
+log
+P\u0302(tk|c)
+
+P\u0302(tk|c\u0304)
+(14.5)
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.4 Linear versus nonlinear classifiers 303
+
+ti wi d1i d2i ti wi d1i d2i
+prime 0.70 0 1 dlrs -0.71 1 1
+rate 0.67 1 0 world -0.35 1 0
+interest 0.63 0 0 sees -0.33 0 0
+rates 0.60 0 0 year -0.25 0 0
+discount 0.46 1 0 group -0.24 0 0
+bundesbank 0.43 0 0 dlr -0.24 0 0
+
+\u25ee Table 14.4 A linear classifier. The dimensions ti and parameters wi of a linear
+classifier for the class interest (as in interest rate) in Reuters-21578. The threshold is
+b = 0. Terms like dlr and world have negative weights because they are indicators for
+the competing class currency.
+
+We choose class c if the odds are greater than 1 or, equivalently, if the log
+odds are greater than 0. It is easy to see that Equation (14.5) is an instance
+of Equation (14.3) for wi = log[P\u0302(ti|c)/P\u0302(ti|c\u0304)], xi = number of occurrences
+of ti in d, and b = \u2212 log[P\u0302(c)/P\u0302(c\u0304)]. Here, the index i, 1 \u2264 i \u2264 M, refers
+to terms of the vocabulary (not to positions in d as k does; cf. Section 13.4.1,
+page 270) and ~x and ~w are M-dimensional vectors. So in log space, Naive
+Bayes is a linear classifier.
+
+\u270e Example 14.3: Table 14.4 defines a linear classifier for the category interest inReuters-21578 (see Section 13.6, page 279). We assign document ~d1 \u201crate discount
+dlrs world\u201d to interest since ~wT~d1 = 0.67 · 1 + 0.46 · 1 + (\u22120.71) · 1 + (\u22120.35) · 1 =
+
+0.07 > 0 = b. We assign ~d2 \u201cprime dlrs\u201d to the complement class (not in interest) since
+
+~wT~d2 = \u22120.01 \u2264 b. For simplicity, we assume a simple binary vector representation
+in this example: 1 for occurring terms, 0 for non-occurring terms.
+
+Figure 14.10 is a graphical example of a linear problem, which we define to
+mean that the underlying distributions P(d|c) and P(d|c) of the two classes
+are separated by a line. We call this separating line the class boundary. It isCLASS BOUNDARY
+the \u201ctrue\u201d boundary of the two classes and we distinguish it from the deci-
+sion boundary that the learning method computes to approximate the class
+boundary.
+
+As is typical in text classification, there are some noise documents in Fig-NOISE DOCUMENT
+ure 14.10 (marked with arrows) that do not fit well into the overall distri-
+bution of the classes. In Section 13.5 (page 271), we defined a noise feature
+as a misleading feature that, when included in the document representation,
+on average increases the classification error. Analogously, a noise document
+is a document that, when included in the training set, misleads the learn-
+ing method and increases classification error. Intuitively, the underlying
+distribution partitions the representation space into areas with mostly ho-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+304 14 Vector space classification
+
+\u25ee Figure 14.10 A linear problem with noise. In this hypothetical web page classifi-
+cation scenario, Chinese-only web pages are solid circles and mixed Chinese-English
+web pages are squares. The two classes are separated by a linear class boundary
+(dashed line, short dashes), except for three noise documents (marked with arrows).
+
+mogeneous class assignments. A document that does not conform with the
+dominant class in its area is a noise document.
+
+Noise documents are one reason why training a linear classifier is hard. If
+we pay too much attention to noise documents when choosing the decision
+hyperplane of the classifier, then it will be inaccurate on new data. More
+fundamentally, it is usually difficult to determine which documents are noise
+documents and therefore potentially misleading.
+
+If there exists a hyperplane that perfectly separates the two classes, then
+we call the two classes linearly separable. In fact, if linear separability holds,LINEAR SEPARABILITY
+then there is an infinite number of linear separators (Exercise 14.4) as illus-
+trated by Figure 14.8, where the number of possible separating hyperplanes
+is infinite.
+
+Figure 14.8 illustrates another challenge in training a linear classifier. If we
+are dealing with a linearly separable problem, then we need a criterion for
+selecting among all decision hyperplanes that perfectly separate the training
+data. In general, some of these hyperplanes will do well on new data, some
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.4 Linear versus nonlinear classifiers 305
+
+0.0 0.2 0.4 0.6 0.8 1.0
+
+0.
+0
+
+0.
+2
+
+0.
+4
+
+0.
+6
+
+0.
+8
+
+1.
+0
+
+\u25ee Figure 14.11 A nonlinear problem.
+
+will not.
+An example of a nonlinear classifier is kNN. The nonlinearity of kNN isNONLINEAR
+
+CLASSIFIER intuitively clear when looking at examples like Figure 14.6. The decision
+boundaries of kNN (the double lines in Figure 14.6) are locally linear seg-
+ments, but in general have a complex shape that is not equivalent to a line in
+2D or a hyperplane in higher dimensions.
+
+Figure 14.11 is another example of a nonlinear problem: there is no good
+linear separator between the distributions P(d|c) and P(d|c) because of the
+circular \u201cenclave\u201d in the upper left part of the graph. Linear classifiers mis-
+classify the enclave, whereas a nonlinear classifier like kNN will be highly
+accurate for this type of problem if the training set is large enough.
+
+If a problem is nonlinear and its class boundaries cannot be approximated
+well with linear hyperplanes, then nonlinear classifiers are often more accu-
+rate than linear classifiers. If a problem is linear, it is best to use a simpler
+linear classifier.
+
+? Exercise 14.4Prove that the number of linear separators of two classes is either infinite or zero.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+306 14 Vector space classification
+
+14.5 Classification with more than two classes
+
+We can extend two-class linear classifiers to J > 2 classes. The method to use
+depends on whether the classes are mutually exclusive or not.
+
+Classification for classes that are not mutually exclusive is called any-of ,ANY-OF
+CLASSIFICATION multilabel, or multivalue classification. In this case, a document can belong to
+
+several classes simultaneously, or to a single class, or to none of the classes.
+A decision on one class leaves all options open for the others. It is some-
+times said that the classes are independent of each other, but this is misleading
+since the classes are rarely statistically independent in the sense defined on
+page 275. In terms of the formal definition of the classification problem in
+Equation (13.1) (page 256), we learn J different classifiers \u03b3j in any-of classi-
+fication, each returning either cj or cj: \u03b3j(d) \u2208 {cj, cj}.
+
+Solving an any-of classification task with linear classifiers is straightfor-
+ward:
+
+1. Build a classifier for each class, where the training set consists of the set
+of documents in the class (positive labels) and its complement (negative
+labels).
+
+2. Given the test document, apply each classifier separately. The decision of
+one classifier has no influence on the decisions of the other classifiers.
+
+The second type of classification with more than two classes is one-of clas-ONE-OF
+CLASSIFICATION sification. Here, the classes are mutually exclusive. Each document must
+
+belong to exactly one of the classes. One-of classification is also called multi-
+nomial, polytomous4, multiclass, or single-label classification. Formally, there is a
+single classification function \u03b3 in one-of classification whose range is C, i.e.,
+\u03b3(d) \u2208 {c1, . . . , cJ}. kNN is a (nonlinear) one-of classifier.
+
+True one-of problems are less common in text classification than any-of
+problems. With classes like UK, China, poultry, or coffee, a document can be
+relevant to many topics simultaneously \u2013 as when the prime minister of the
+UK visits China to talk about the coffee and poultry trade.
+
+Nevertheless, we will often make a one-of assumption, as we did in Fig-
+ure 14.1, even if classes are not really mutually exclusive. For the classifica-
+tion problem of identifying the language of a document, the one-of assump-
+tion is a good approximation as most text is written in only one language.
+In such cases, imposing a one-of constraint can increase the classifier\u2019s ef-
+fectiveness because errors that are due to the fact that the any-of classifiers
+assigned a document to either no class or more than one class are eliminated.
+
+J hyperplanes do not divide R|V| into J distinct regions as illustrated in
+Figure 14.12. Thus, we must use a combination method when using two-
+class linear classifiers for one-of classification. The simplest method is to
+
+4. A synonym of polytomous is polychotomous.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.5 Classification with more than two classes 307
+
+?
+
+\u25ee Figure 14.12 J hyperplanes do not divide space into J disjoint regions.
+
+rank classes and then select the top-ranked class. Geometrically, the ranking
+can be with respect to the distances from the J linear separators. Documents
+close to a class\u2019s separator are more likely to be misclassified, so the greater
+the distance from the separator, the more plausible it is that a positive clas-
+sification decision is correct. Alternatively, we can use a direct measure of
+confidence to rank classes, e.g., probability of class membership. We can
+state this algorithm for one-of classification with linear classifiers as follows:
+
+1. Build a classifier for each class, where the training set consists of the set
+of documents in the class (positive labels) and its complement (negative
+labels).
+
+2. Given the test document, apply each classifier separately.
+
+3. Assign the document to the class with
+
+\u2022 the maximum score,
+
+\u2022 the maximum confidence value,
+
+\u2022 or the maximum probability.
+
+An important tool for analyzing the performance of a classifier for J > 2
+classes is the confusion matrix. The confusion matrix shows for each pair ofCONFUSION MATRIX
+classes \u3008c1, c2\u3009, how many documents from c1 were incorrectly assigned to c2.
+In Table 14.5, the classifier manages to distinguish the three financial classes
+money-fx, trade, and interest from the three agricultural classes wheat, corn,
+and grain, but makes many errors within these two groups. The confusion
+matrix can help pinpoint opportunities for improving the accuracy of the
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+308 14 Vector space classification
+
+assigned class money-fx trade interest wheat corn grain
+true class
+money-fx 95 0 10 0 0 0
+trade 1 1 90 0 1 0
+interest 13 0 0 0 0 0
+wheat 0 0 1 34 3 7
+corn 1 0 2 13 26 5
+grain 0 0 2 14 5 10
+
+\u25ee Table 14.5 A confusion matrix for Reuters-21578. For example, 14 documents
+from grain were incorrectly assigned to wheat. Adapted from Picca et al. (2006).
+
+system. For example, to address the second largest error in Table 14.5 (14 in
+the row grain), one could attempt to introduce features that distinguish wheat
+documents from grain documents.
+
+? Exercise 14.5Create a training set of 300 documents, 100 each from three different languages (e.g.,
+English, French, Spanish). Create a test set by the same procedure, but also add 100
+documents from a fourth language. Train (i) a one-of classifier (ii) an any-of classi-
+fier on this training set and evaluate it on the test set. (iii) Are there any interesting
+differences in how the two classifiers behave on this task?
+
+\u2704 14.6 The bias-variance tradeoff
+Nonlinear classifiers are more powerful than linear classifiers. For some
+problems, there exists a nonlinear classifier with zero classification error, but
+no such linear classifier. Does that mean that we should always use nonlinear
+classifiers for optimal effectiveness in statistical text classification?
+
+To answer this question, we introduce the bias-variance tradeoff in this sec-
+tion, one of the most important concepts in machine learning. The tradeoff
+helps explain why there is no universally optimal learning method. Selecting
+an appropriate learning method is therefore an unavoidable part of solving
+a text classification problem.
+
+Throughout this section, we use linear and nonlinear classifiers as proto-
+typical examples of \u201cless powerful\u201d and \u201cmore powerful\u201d learning, respec-
+tively. This is a simplification for a number of reasons. First, many nonlinear
+models subsume linear models as a special case. For instance, a nonlinear
+learning method like kNN will in some cases produce a linear classifier. Sec-
+ond, there are nonlinear models that are less complex than linear models.
+For instance, a quadratic polynomial with two parameters is less powerful
+than a 10,000-dimensional linear classifier. Third, the complexity of learn-
+ing is not really a property of the classifier because there are many aspects
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.6 The bias-variance tradeoff 309
+
+of learning (such as feature selection, cf. (Section 13.5, page 271), regulariza-
+tion, and constraints such as margin maximization in Chapter 15) that make
+a learning method either more powerful or less powerful without affecting
+the type of classifier that is the final result of learning \u2013 regardless of whether
+that classifier is linear or nonlinear. We refer the reader to the publications
+listed in Section 14.7 for a treatment of the bias-variance tradeoff that takes
+into account these complexities. In this section, linear and nonlinear classi-
+fiers will simply serve as proxies for weaker and stronger learning methods
+in text classification.
+
+We first need to state our objective in text classification more precisely. In
+Section 13.1 (page 256), we said that we want to minimize classification er-
+ror on the test set. The implicit assumption was that training documents
+and test documents are generated according to the same underlying distri-
+bution. We will denote this distribution P(\u3008d, c\u3009) where d is the document
+and c its label or class. Figures 13.4 and 13.5 were examples of generative
+models that decompose P(\u3008d, c\u3009) into the product of P(c) and P(d|c). Fig-
+ures 14.10 and 14.11 depict generative models for \u3008d, c\u3009 with d \u2208 R2 and
+c \u2208 {square, solid circle}.
+
+In this section, instead of using the number of correctly classified test doc-
+uments (or, equivalently, the error rate on test documents) as evaluation
+measure, we adopt an evaluation measure that addresses the inherent un-
+certainty of labeling. In many text classification problems, a given document
+representation can arise from documents belonging to different classes. This
+is because documents from different classes can be mapped to the same doc-
+ument representation. For example, the one-sentence documents China sues
+France and France sues China are mapped to the same document representa-
+tion d\u2032 = {China, France, sues} in a bag of words model. But only the latter
+document is relevant to the class c\u2032 = legal actions brought by France (which
+might be defined, for example, as a standing query by an international trade
+lawyer).
+
+To simplify the calculations in this section, we do not count the number
+of errors on the test set when evaluating a classifier, but instead look at how
+well the classifier estimates the conditional probability P(c|d) of a document
+being in a class. In the above example, we might have P(c\u2032|d\u2032) = 0.5.
+
+Our goal in text classification then is to find a classifier \u03b3 such that, aver-
+aged over documents d, \u03b3(d) is as close as possible to the true probability
+P(c|d). We measure this using mean squared error:
+
+MSE(\u03b3) = Ed[\u03b3(d)\u2212 P(c|d)]
+2(14.6)
+
+where Ed is the expectation with respect to P(d). The mean squared error
+term gives partial credit for decisions by \u03b3 that are close if not completely
+right.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+310 14 Vector space classification
+
+E[x\u2212 \u03b1]2 = Ex2 \u2212 2Ex\u03b1 + \u03b12(14.8)
+
+= (Ex)2 \u2212 2Ex\u03b1 + \u03b12
+
++Ex2 \u2212 2(Ex)2 + (Ex)2
+
+= [Ex\u2212 \u03b1]2
+
++Ex2 \u2212 E2x(Ex) + E(Ex)2
+
+= [Ex\u2212 \u03b1]2 + E[x\u2212 Ex]2
+
+EDEd[\u0393D(d)\u2212 P(c|d)]
+2 = EdED[\u0393D(d)\u2212 P(c|d)]
+
+2(14.9)
+
+= Ed[ [ED\u0393D(d)\u2212 P(c|d)]
+2
+
++ED [\u0393D(d)\u2212 ED\u0393D(d)]
+2 ]
+
+\u25ee Figure 14.13 Arithmetic transformations for the bias-variance decomposition.
+For the derivation of Equation (14.9), we set \u03b1 = P(c|d) and x = \u0393D(d) in Equa-
+tion (14.8).
+
+We define a classifier \u03b3 to be optimal for a distribution P(\u3008d, c\u3009) if it mini-OPTIMAL CLASSIFIER
+mizes MSE(\u03b3).
+
+Minimizing MSE is a desideratum for classifiers. We also need a criterion
+for learning methods. Recall that we defined a learning method \u0393 as a function
+that takes a labeled training set D as input and returns a classifier \u03b3.
+
+For learning methods, we adopt as our goal to find a \u0393 that, averaged over
+training sets, learns classifiers \u03b3 with minimal MSE. We can formalize this as
+minimizing learning error:LEARNING ERROR
+
+learning-error(\u0393) = ED[MSE(\u0393(D))](14.7)
+
+where ED is the expectation over labeled training sets. To keep things simple,
+we can assume that training sets have a fixed size \u2013 the distribution P(\u3008d, c\u3009)
+then defines a distribution P(D) over training sets.
+
+We can use learning error as a criterion for selecting a learning method in
+statistical text classification. A learning method \u0393 is optimal for a distributionOPTIMAL LEARNING
+
+METHOD P(D) if it minimizes the learning error.
+Writing \u0393D for \u0393(D) for better readability, we can transform Equation (14.7)
+
+as follows:
+
+learning-error(\u0393) = ED[MSE(\u0393D)]
+
+= EDEd[\u0393D(d)\u2212 P(c|d)]
+2(14.10)
+
+= Ed[bias(\u0393, d) + variance(\u0393, d)](14.11)
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.6 The bias-variance tradeoff 311
+
+bias(\u0393, d) = [P(c|d)\u2212 ED\u0393D(d)]
+2(14.12)
+
+variance(\u0393, d) = ED[\u0393D(d)\u2212 ED\u0393D(d)]
+2(14.13)
+
+where the equivalence between Equations (14.10) and (14.11) is shown in
+Equation (14.9) in Figure 14.13. Note that d and D are independent of each
+other. In general, for a random document d and a random training set D, D
+does not contain a labeled instance of d.
+
+Bias is the squared difference between P(c|d), the true conditional prob-BIAS
+ability of d being in c, and \u0393D(d), the prediction of the learned classifier,
+averaged over training sets. Bias is large if the learning method produces
+classifiers that are consistently wrong. Bias is small if (i) the classifiers are
+consistently right or (ii) different training sets cause errors on different docu-
+ments or (iii) different training sets cause positive and negative errors on the
+same documents, but that average out to close to 0. If one of these three con-
+ditions holds, then ED\u0393D(d), the expectation over all training sets, is close to
+P(c|d).
+
+Linear methods like Rocchio and Naive Bayes have a high bias for non-
+linear problems because they can only model one type of class boundary, a
+linear hyperplane. If the generative model P(\u3008d, c\u3009) has a complex nonlinear
+class boundary, the bias term in Equation (14.11) will be high because a large
+number of points will be consistently misclassified. For example, the circular
+enclave in Figure 14.11 does not fit a linear model and will be misclassified
+consistently by linear classifiers.
+
+We can think of bias as resulting from our domain knowledge (or lack
+thereof) that we build into the classifier. If we know that the true boundary
+between the two classes is linear, then a learning method that produces linear
+classifiers is more likely to succeed than a nonlinear method. But if the true
+class boundary is not linear and we incorrectly bias the classifier to be linear,
+then classification accuracy will be low on average.
+
+Nonlinear methods like kNN have low bias. We can see in Figure 14.6 that
+the decision boundaries of kNN are variable \u2013 depending on the distribu-
+tion of documents in the training set, learned decision boundaries can vary
+greatly. As a result, each document has a chance of being classified correctly
+for some training sets. The average prediction ED\u0393D(d) is therefore closer to
+P(c|d) and bias is smaller than for a linear learning method.
+
+Variance is the variation of the prediction of learned classifiers: the aver-VARIANCE
+age squared difference between \u0393D(d) and its average ED\u0393D(d). Variance is
+large if different training sets D give rise to very different classifiers \u0393D . It is
+small if the training set has a minor effect on the classification decisions \u0393D
+makes, be they correct or incorrect. Variance measures how inconsistent the
+decisions are, not whether they are correct or incorrect.
+
+Linear learning methods have low variance because most randomly drawn
+training sets produce similar decision hyperplanes. The decision lines pro-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+312 14 Vector space classification
+
+duced by linear learning methods in Figures 14.10 and 14.11 will deviate
+slightly from the main class boundaries, depending on the training set, but
+the class assignment for the vast majority of documents (with the exception
+of those close to the main boundary) will not be affected. The circular enclave
+in Figure 14.11 will be consistently misclassified.
+
+Nonlinear methods like kNN have high variance. It is apparent from Fig-
+ure 14.6 that kNN can model very complex boundaries between two classes.
+It is therefore sensitive to noise documents of the sort depicted in Figure 14.10.
+As a result the variance term in Equation (14.11) is large for kNN: Test doc-
+uments are sometimes misclassified \u2013 if they happen to be close to a noise
+document in the training set \u2013 and sometimes correctly classified \u2013 if there
+are no noise documents in the training set near them. This results in high
+variation from training set to training set.
+
+High-variance learning methods are prone to overfitting the training data.OVERFITTING
+The goal in classification is to fit the training data to the extent that we cap-
+ture true properties of the underlying distribution P(\u3008d, c\u3009). In overfitting,
+the learning method also learns from noise. Overfitting increases MSE and
+frequently is a problem for high-variance learning methods.
+
+We can also think of variance as the model complexity or, equivalently, mem-MEMORY CAPACITY
+ory capacity of the learning method \u2013 how detailed a characterization of the
+training set it can remember and then apply to new data. This capacity corre-
+sponds to the number of independent parameters available to fit the training
+set. Each kNN neighborhood Sk makes an independent classification deci-
+sion. The parameter in this case is the estimate P\u0302(c|Sk) from Figure 14.7.
+Thus, kNN\u2019s capacity is only limited by the size of the training set. It can
+memorize arbitrarily large training sets. In contrast, the number of parame-
+ters of Rocchio is fixed \u2013 J parameters per dimension, one for each centroid
+\u2013 and independent of the size of the training set. The Rocchio classifier (in
+form of the centroids defining it) cannot \u201cremember\u201d fine-grained details of
+the distribution of the documents in the training set.
+
+According to Equation (14.7), our goal in selecting a learning method is to
+minimize learning error. The fundamental insight captured by Equation (14.11),
+which we can succinctly state as: learning-error = bias + variance, is that the
+learning error has two components, bias and variance, which in general can-
+not be minimized simultaneously. When comparing two learning methods
+\u03931 and \u03932, in most cases the comparison comes down to one method having
+higher bias and lower variance and the other lower bias and higher variance.
+The decision for one learning method vs. another is then not simply a mat-
+ter of selecting the one that reliably produces good classifiers across training
+sets (small variance) or the one that can learn classification problems with
+very difficult decision boundaries (small bias). Instead, we have to weigh
+the respective merits of bias and variance in our application and choose ac-
+cordingly. This tradeoff is called the bias-variance tradeoff .BIAS-VARIANCE
+
+TRADEOFF
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.6 The bias-variance tradeoff 313
+
+Figure 14.10 provides an illustration, which is somewhat contrived, but
+will be useful as an example for the tradeoff. Some Chinese text contains
+English words written in the Roman alphabet like CPU, ONLINE, and GPS.
+Consider the task of distinguishing Chinese-only web pages from mixed
+Chinese-English web pages. A search engine might offer Chinese users with-
+out knowledge of English (but who understand loanwords like CPU) the op-
+tion of filtering out mixed pages. We use two features for this classification
+task: number of Roman alphabet characters and number of Chinese char-
+acters on the web page. As stated earlier, the distribution P(\u3008d, c\u3009) of the
+generative model generates most mixed (respectively, Chinese) documents
+above (respectively, below) the short-dashed line, but there are a few noise
+documents.
+
+In Figure 14.10, we see three classifiers:
+
+\u2022 One-feature classifier. Shown as a dotted horizontal line. This classifier
+uses only one feature, the number of Roman alphabet characters. Assum-
+ing a learning method that minimizes the number of misclassifications
+in the training set, the position of the horizontal decision boundary is
+not greatly affected by differences in the training set (e.g., noise docu-
+ments). So a learning method producing this type of classifier has low
+variance. But its bias is high since it will consistently misclassify squares
+in the lower left corner and \u201csolid circle\u201d documents with more than 50
+Roman characters.
+
+\u2022 Linear classifier. Shown as a dashed line with long dashes. Learning lin-
+ear classifiers has less bias since only noise documents and possibly a few
+documents close to the boundary between the two classes are misclassi-
+fied. The variance is higher than for the one-feature classifiers, but still
+small: The dashed line with long dashes deviates only slightly from the
+true boundary between the two classes, and so will almost all linear de-
+cision boundaries learned from training sets. Thus, very few documents
+(documents close to the class boundary) will be inconsistently classified.
+
+\u2022 \u201cFit-training-set-perfectly\u201d classifier. Shown as a solid line. Here, the
+learning method constructs a decision boundary that perfectly separates
+the classes in the training set. This method has the lowest bias because
+there is no document that is consistently misclassified \u2013 the classifiers
+sometimes even get noise documents in the test set right. But the variance
+of this learning method is high. Because noise documents can move the
+decision boundary arbitrarily, test documents close to noise documents
+in the training set will be misclassified \u2013 something that a linear learning
+method is unlikely to do.
+
+It is perhaps surprising that so many of the best-known text classification
+algorithms are linear. Some of these methods, in particular linear SVMs, reg-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+314 14 Vector space classification
+
+ularized logistic regression and regularized linear regression, are among the
+most effective known methods. The bias-variance tradeoff provides insight
+into their success. Typical classes in text classification are complex and seem
+unlikely to be modeled well linearly. However, this intuition is misleading
+for the high-dimensional spaces that we typically encounter in text appli-
+cations. With increased dimensionality, the likelihood of linear separability
+increases rapidly (Exercise 14.17). Thus, linear models in high-dimensional
+spaces are quite powerful despite their linearity. Even more powerful nonlin-
+ear learning methods can model decision boundaries that are more complex
+than a hyperplane, but they are also more sensitive to noise in the training
+data. Nonlinear learning methods sometimes perform better if the training
+set is large, but by no means in all cases.
+
+14.7 References and further reading
+
+As discussed in Chapter 9, Rocchio relevance feedback is due to Rocchio
+(1971). Joachims (1997) presents a probabilistic analysis of the method. Roc-
+chio classification was widely used as a classification method in TREC in the
+1990s (Buckley et al. 1994a;b, Voorhees and Harman 2005). Initially, it was
+used as a form of routing. Routing merely ranks documents according to rel-ROUTING
+evance to a class without assigning them. Early work on filtering, a true clas-FILTERING
+sification approach that makes an assignment decision on each document,
+was published by Ittner et al. (1995) and Schapire et al. (1998). The definition
+of routing we use here should not be confused with another sense. Routing
+can also refer to the electronic distribution of documents to subscribers, the
+so-called push model of document distribution. In a pull model, each transferPUSH MODEL
+
+PULL MODEL of a document to the user is initiated by the user \u2013 for example, by means
+of search or by selecting it from a list of documents on a news aggregation
+website.
+
+Some authors restrict the name Roccchio classification to two-class problems
+and use the terms cluster-based (Iwayama and Tokunaga 1995) and centroid-CENTROID-BASED
+
+CLASSIFICATION based classification (Han and Karypis 2000, Tan and Cheng 2007) for Rocchio
+classification with J > 2.
+
+A more detailed treatment of kNN can be found in (Hastie et al. 2001), in-
+cluding methods for tuning the parameter k. An example of an approximate
+fast kNN algorithm is locality-based hashing (Andoni et al. 2006). Klein-
+
+berg (1997) presents an approximate \u0398((M log2 M)(M + log N)) kNN algo-
+rithm (where M is the dimensionality of the space and N the number of data
+points), but at the cost of exponential storage requirements: \u0398((N log M)2M).
+Indyk (2004) surveys nearest neighbor methods in high-dimensional spaces.
+Early work on kNN in text classification was motivated by the availability
+of massively parallel hardware architectures (Creecy et al. 1992). Yang (1994)
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.8 Exercises 315
+
+uses an inverted index to speed up kNN classification. The optimality result
+for 1NN (twice the Bayes error rate asymptotically) is due to Cover and Hart
+(1967).
+
+The effectiveness of Rocchio classification and kNN is highly dependent
+on careful parameter tuning (in particular, the parameters b\u2032 for Rocchio on
+page 296 and k for kNN), feature engineering (Section 15.3, page 334) and
+feature selection (Section 13.5, page 271). Buckley and Salton (1995), Schapire
+et al. (1998), Yang and Kisiel (2003) and Moschitti (2003) address these issues
+for Rocchio and Yang (2001) and Ault and Yang (2002) for kNN. Zavrel et al.
+(2000) compare feature selection methods for kNN.
+
+The bias-variance tradeoff was introduced by Geman et al. (1992). The
+derivation in Section 14.6 is for MSE(\u03b3), but the tradeoff applies to many
+loss functions (cf. Friedman (1997), Domingos (2000)). Schütze et al. (1995)
+and Lewis et al. (1996) discuss linear classifiers for text and Hastie et al. (2001)
+linear classifiers in general. Readers interested in the algorithms mentioned,
+but not described in this chapter may wish to consult Bishop (2006) for neu-
+ral networks, Hastie et al. (2001) for linear and logistic regression, and Min-
+sky and Papert (1988) for the perceptron algorithm. Anagnostopoulos et al.
+(2006) show that an inverted index can be used for highly efficient document
+classification with any linear classifier, provided that the classifier is still ef-
+fective when trained on a modest number of features via feature selection.
+
+We have only presented the simplest method for combining two-class clas-
+sifiers into a one-of classifier. Another important method is the use of error-
+correcting codes, where a vector of decisions of different two-class classifiers
+is constructed for each document. A test document\u2019s decision vector is then
+\u201ccorrected\u201d based on the distribution of decision vectors in the training set,
+a procedure that incorporates information from all two-class classifiers and
+their correlations into the final classification decision (Dietterich and Bakiri
+1995). Ghamrawi and McCallum (2005) also exploit dependencies between
+classes in any-of classification. Allwein et al. (2000) propose a general frame-
+work for combining two-class classifiers.
+
+14.8 Exercises
+
+? Exercise 14.6In Figure 14.14, which of the three vectors~a,~b, and~c is (i) most similar to ~x according
+to dot product similarity, (ii) most similar to ~x according to cosine similarity, (iii)
+closest to ~x according to Euclidean distance?
+
+Exercise 14.7
+
+Download Reuters-21578 and train and test Rocchio and kNN classifiers for the classes
+acquisitions, corn, crude, earn, grain, interest, money-fx, ship, trade, and wheat. Use the
+ModApte split. You may want to use one of a number of software packages that im-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+316 14 Vector space classification
+
+0 1 2 3 4 5 6 7 8
+0
+1
+2
+3
+4
+5
+6
+7
+8
+
+a
+x
+
+b
+
+c
+
+\u25ee Figure 14.14 Example for differences between Euclidean distance, dot product
+
+similarity and cosine similarity. The vectors are ~a = (0.5 1.5)T, ~x = (2 2)T, ~b =
+(4 4)T , and~c = (8 6)T .
+
+plement Rocchio classification and kNN classification, for example, the Bow toolkit
+(McCallum 1996).
+
+Exercise 14.8
+
+Download 20 Newgroups (page 154) and train and test Rocchio and kNN classifiers
+for its 20 classes.
+
+Exercise 14.9
+
+Show that the decision boundaries in Rocchio classification are, as in kNN, given by
+the Voronoi tessellation.
+
+Exercise 14.10 [\u22c6]
+
+Computing the distance between a dense centroid and a sparse vector is \u0398(M) for
+a naive implementation that iterates over all M dimensions. Based on the equality
+
+\u2211(xi \u2212 µi)
+2 = 1.0 + \u2211 µ2i \u2212 2 \u2211 xiµi and assuming that \u2211 µ
+
+2
+i has been precomputed,
+
+write down an algorithm that is \u0398(Ma) instead, where Ma is the number of distinct
+terms in the test document.
+
+Exercise 14.11 [\u22c6 \u22c6 \u22c6]
+
+Prove that the region of the plane consisting of all points with the same k nearest
+neighbors is a convex polygon.
+
+Exercise 14.12
+
+Design an algorithm that performs an efficient 1NN search in 1 dimension (where
+efficiency is with respect to the number of documents N). What is the time complexity
+of the algorithm?
+
+Exercise 14.13 [\u22c6 \u22c6 \u22c6]
+
+Design an algorithm that performs an efficient 1NN search in 2 dimensions with at
+most polynomial (in N) preprocessing time.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+14.8 Exercises 317
+
+b
+
+b
+
+\u25ee Figure 14.15 A simple non-separable set of points.
+
+Exercise 14.14 [\u22c6 \u22c6 \u22c6]
+
+Can one design an exact efficient algorithm for 1NN for very large M along the ideas
+you used to solve the last exercise?
+
+Exercise 14.15
+
+Show that Equation (14.4) defines a hyperplane with ~w = ~µ(c1) \u2212 ~µ(c2) and b =
+0.5 \u2217 (|~µ(c1)|
+
+2 \u2212 |~µ(c2)|
+2).
+
+Exercise 14.16
+
+We can easily construct non-separable data sets in high dimensions by embedding
+a non-separable set like the one shown in Figure 14.15. Consider embedding Fig-
+ure 14.15 in 3D and then perturbing the 4 points slightly (i.e., moving them a small
+distance in a random direction). Why would you expect the resulting configuration
+to be linearly separable? How likely is then a non-separable set of m \u226a M points in
+M-dimensional space?
+
+Exercise 14.17
+
+Assuming two classes, show that the percentage of non-separable assignments of the
+vertices of a hypercube decreases with dimensionality M for M > 1. For example,
+for M = 1 the proportion of non-separable assignments is 0, for M = 2, it is 2/16.
+One of the two non-separable cases for M = 2 is shown in Figure 14.15, the other is
+its mirror image. Solve the exercise either analytically or by simulation.
+
+Exercise 14.18
+
+Although we point out the similarities of Naive Bayes with linear vector space classi-
+fiers, it does not make sense to represent count vectors (the document representations
+in NB) in a continuous vector space. There is however a formalization of NB that is
+analogous to Rocchio. Show that NB assigns a document to the class (represented as
+a parameter vector) whose Kullback-Leibler (KL) divergence (Section 12.4, page 251)
+to the document (represented as a count vector as in Section 13.4.1 (page 270), nor-
+malized to sum to 1) is smallest.
+
+
+	Vector space classification
+	Document representations and measures of relatedness in vector spaces
+	Rocchio classification
+	k nearest neighbor
+	Time complexity and optimality of kNN
+
+	Linear versus nonlinear classifiers
+	Classification with more than two classes
+	The bias-variance tradeoff
+	References and further reading
+	Exercises
+
+

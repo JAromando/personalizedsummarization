@@ -1,0 +1,1236 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Introduction to Information Retrieval
+
+
+Online edition (c)
+2009 Cambridge UP
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+DRAFT! © April 1, 2009 Cambridge University Press. Feedback welcome. 421
+
+19 Web search basics
+
+In this and the following two chapters, we consider web search engines. Sec-
+tions 19.1\u201319.4 provide some background and history to help the reader ap-
+preciate the forces that conspire to make the Web chaotic, fast-changing and
+(from the standpoint of information retrieval) very different from the \u201ctradi-
+tional\u201d collections studied thus far in this book. Sections 19.5\u201319.6 deal with
+estimating the number of documents indexed by web search engines, and the
+elimination of duplicate documents in web indexes, respectively. These two
+latter sections serve as background material for the following two chapters.
+
+19.1 Background and history
+
+The Web is unprecedented in many ways: unprecedented in scale, unprece-
+dented in the almost-complete lack of coordination in its creation, and un-
+precedented in the diversity of backgrounds and motives of its participants.
+Each of these contributes to making web search different \u2013 and generally far
+harder \u2013 than searching \u201ctraditional\u201d documents.
+
+The invention of hypertext, envisioned by Vannevar Bush in the 1940\u2019s and
+first realized in working systems in the 1970\u2019s, significantly precedes the for-
+mation of the World Wide Web (which we will simply refer to as the Web), in
+the 1990\u2019s. Web usage has shown tremendous growth to the point where it
+now claims a good fraction of humanity as participants, by relying on a sim-
+ple, open client-server design: (1) the server communicates with the client
+via a protocol (the http or hypertext transfer protocol) that is lightweight andHTTP
+simple, asynchronously carrying a variety of payloads (text, images and \u2013
+over time \u2013 richer media such as audio and video files) encoded in a sim-
+ple markup language called HTML (for hypertext markup language); (2) theHTML
+client \u2013 generally a browser, an application within a graphical user environ-
+ment \u2013 can ignore what it does not understand. Each of these seemingly
+innocuous features has contributed enormously to the growth of the Web, so
+it is worthwhile to examine them further.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+422 19 Web search basics
+
+The basic operation is as follows: a client (such as a browser) sends an http
+request to a web server. The browser specifies a URL (for Universal Resource Lo-URL
+cator) such ashttp://www.stanford.edu/home/atoz/contact.html.
+In this example URL, the string http refers to the protocol to be used for
+transmitting the data. The string www.stanford.edu is known as the do-
+main and specifies the root of a hierarchy of web pages (typically mirroring a
+filesystem hierarchy underlying the web server). In this example, /home/atoz/contact.html
+is a path in this hierarchy with a file contact.html that contains the infor-
+mation to be returned by the web server at www.stanford.edu in response
+to this request. The HTML-encoded file contact.html holds the hyper-
+links and the content (in this instance, contact information for Stanford Uni-
+versity), as well as formatting rules for rendering this content in a browser.
+Such an http request thus allows us to fetch the content of a page, some-
+thing that will prove to be useful to us for crawling and indexing documents
+(Chapter 20).
+
+The designers of the first browsers made it easy to view the HTML markup
+tags on the content of a URL. This simple convenience allowed new users to
+create their own HTML content without extensive training or experience;
+rather, they learned from example content that they liked. As they did so, a
+second feature of browsers supported the rapid proliferation of web content
+creation and usage: browsers ignored what they did not understand. This
+did not, as one might fear, lead to the creation of numerous incompatible
+dialects of HTML. What it did promote was amateur content creators who
+could freely experiment with and learn from their newly created web pages
+without fear that a simple syntax error would \u201cbring the system down.\u201d Pub-
+lishing on the Web became a mass activity that was not limited to a few
+trained programmers, but rather open to tens and eventually hundreds of
+millions of individuals. For most users and for most information needs, the
+Web quickly became the best way to supply and consume information on
+everything from rare ailments to subway schedules.
+
+The mass publishing of information on the Web is essentially useless un-
+less this wealth of information can be discovered and consumed by other
+users. Early attempts at making web information \u201cdiscoverable\u201d fell into two
+broad categories: (1) full-text index search engines such as Altavista, Excite
+and Infoseek and (2) taxonomies populated with web pages in categories,
+such as Yahoo! The former presented the user with a keyword search in-
+terface supported by inverted indexes and ranking mechanisms building on
+those introduced in earlier chapters. The latter allowed the user to browse
+through a hierarchical tree of category labels. While this is at first blush a
+convenient and intuitive metaphor for finding web pages, it has a number of
+drawbacks: first, accurately classifying web pages into taxonomy tree nodes
+is for the most part a manual editorial process, which is difficult to scale
+with the size of the Web. Arguably, we only need to have \u201chigh-quality\u201d
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.2 Web characteristics 423
+
+web pages in the taxonomy, with only the best web pages for each category.
+However, just discovering these and classifying them accurately and consis-
+tently into the taxonomy entails significant human effort. Furthermore, in
+order for a user to effectively discover web pages classified into the nodes of
+the taxonomy tree, the user\u2019s idea of what sub-tree(s) to seek for a particu-
+lar topic should match that of the editors performing the classification. This
+quickly becomes challenging as the size of the taxonomy grows; the Yahoo!
+taxonomy tree surpassed 1000 distinct nodes fairly early on. Given these
+challenges, the popularity of taxonomies declined over time, even though
+variants (such as About.com and the Open Directory Project) sprang up with
+subject-matter experts collecting and annotating web pages for each cate-
+gory.
+
+The first generation of web search engines transported classical search
+techniques such as those in the preceding chapters to the web domain, focus-
+ing on the challenge of scale. The earliest web search engines had to contend
+with indexes containing tens of millions of documents, which was a few or-
+ders of magnitude larger than any prior information retrieval system in the
+public domain. Indexing, query serving and ranking at this scale required
+the harnessing together of tens of machines to create highly available sys-
+tems, again at scales not witnessed hitherto in a consumer-facing search ap-
+plication. The first generation of web search engines was largely successful
+at solving these challenges while continually indexing a significant fraction
+of the Web, all the while serving queries with sub-second response times.
+However, the quality and relevance of web search results left much to be
+desired owing to the idiosyncrasies of content creation on the Web that we
+discuss in Section 19.2. This necessitated the invention of new ranking and
+spam-fighting techniques in order to ensure the quality of the search results.
+While classical information retrieval techniques (such as those covered ear-
+lier in this book) continue to be necessary for web search, they are not by
+any means sufficient. A key aspect (developed further in Chapter 21) is that
+whereas classical techniques measure the relevance of a document to a query,
+there remains a need to gauge the authoritativeness of a document based on
+cues such as which website hosts it.
+
+19.2 Web characteristics
+
+The essential feature that led to the explosive growth of the web \u2013 decentral-
+ized content publishing with essentially no central control of authorship \u2013
+turned out to be the biggest challenge for web search engines in their quest to
+index and retrieve this content. Web page authors created content in dozens
+of (natural) languages and thousands of dialects, thus demanding many dif-
+ferent forms of stemming and other linguistic operations. Because publish-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+424 19 Web search basics
+
+ing was now open to tens of millions, web pages exhibited heterogeneity at a
+daunting scale, in many crucial aspects. First, content-creation was no longer
+the privy of editorially-trained writers; while this represented a tremendous
+democratization of content creation, it also resulted in a tremendous varia-
+tion in grammar and style (and in many cases, no recognizable grammar or
+style). Indeed, web publishing in a sense unleashed the best and worst of
+desktop publishing on a planetary scale, so that pages quickly became rid-
+dled with wild variations in colors, fonts and structure. Some web pages,
+including the professionally created home pages of some large corporations,
+consisted entirely of images (which, when clicked, led to richer textual con-
+tent) \u2013 and therefore, no indexable text.
+
+What about the substance of the text in web pages? The democratization
+of content creation on the web meant a new level of granularity in opinion on
+virtually any subject. This meant that the web contained truth, lies, contra-
+dictions and suppositions on a grand scale. This gives rise to the question:
+which web pages does one trust? In a simplistic approach, one might argue
+that some publishers are trustworthy and others not \u2013 begging the question
+of how a search engine is to assign such a measure of trust to each website
+or web page. In Chapter 21 we will examine approaches to understanding
+this question. More subtly, there may be no universal, user-independent no-
+tion of trust; a web page whose contents are trustworthy to one user may
+not be so to another. In traditional (non-web) publishing this is not an issue:
+users self-select sources they find trustworthy. Thus one reader may find
+the reporting of The New York Times to be reliable, while another may prefer
+The Wall Street Journal. But when a search engine is the only viable means
+for a user to become aware of (let alone select) most content, this challenge
+becomes significant.
+
+While the question \u201chow big is the Web?\u201d has no easy answer (see Sec-
+tion 19.5), the question \u201chow many web pages are in a search engine\u2019s index\u201d
+is more precise, although, even this question has issues. By the end of 1995,
+Altavista reported that it had crawled and indexed approximately 30 million
+static web pages. Static web pages are those whose content does not vary fromSTATIC WEB PAGES
+one request for that page to the next. For this purpose, a professor who man-
+ually updates his home page every week is considered to have a static web
+page, but an airport\u2019s flight status page is considered to be dynamic. Dy-
+namic pages are typically mechanically generated by an application server
+in response to a query to a database, as show in Figure 19.1. One sign of
+such a page is that the URL has the character "?" in it. Since the number
+of static web pages was believed to be doubling every few months in 1995,
+early web search engines such as Altavista had to constantly add hardware
+and bandwidth for crawling and indexing web pages.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.2 Web characteristics 425
+
+\u25ee Figure 19.1 A dynamically generated web page. The browser sends a request for
+flight information on flight AA129 to the web application, that fetches the informa-
+tion from back-end databases then creates a dynamic web page that it returns to the
+browser.
+
+&%
+'$
+
+&%
+'$
+
+-
+anchor
+
+\u25ee Figure 19.2 Two nodes of the web graph joined by a link.
+
+19.2.1 The web graph
+
+We can view the static Web consisting of static HTML pages together with
+the hyperlinks between them as a directed graph in which each web page is
+a node and each hyperlink a directed edge.
+
+Figure 19.2 shows two nodes A and B from the web graph, each corre-
+sponding to a web page, with a hyperlink from A to B. We refer to the set of
+all such nodes and directed edges as the web graph. Figure 19.2 also shows
+that (as is the case with most links on web pages) there is some text surround-
+ing the origin of the hyperlink on page A. This text is generally encapsulated
+in the href attribute of the <a> (for anchor) tag that encodes the hyperlink
+in the HTML code of page A, and is referred to as anchor text. As one mightANCHOR TEXT
+suspect, this directed graph is not strongly connected: there are pairs of pages
+such that one cannot proceed from one page of the pair to the other by follow-
+ing hyperlinks. We refer to the hyperlinks into a page as in-links and thoseIN-LINKS
+out of a page as out-links. The number of in-links to a page (also known asOUT-LINKS
+its in-degree) has averaged from roughly 8 to 15, in a range of studies. We
+similarly define the out-degree of a web page to be the number of links out
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+426 19 Web search basics
+
+\u25ee Figure 19.3 A sample small web graph. In this example we have six pages labeled
+A-F. Page B has in-degree 3 and out-degree 1. This example graph is not strongly
+connected: there is no path from any of pages B-F to page A.
+
+of it. These notions are represented in Figure 19.3.
+There is ample evidence that these links are not randomly distributed; for
+
+one thing, the distribution of the number of links into a web page does not
+follow the Poisson distribution one would expect if every web page were
+to pick the destinations of its links uniformly at random. Rather, this dis-
+tribution is widely reported to be a power law, in which the total number ofPOWER LAW
+web pages with in-degree i is proportional to 1/i\u03b1; the value of \u03b1 typically
+reported by studies is 2.1.1 Furthermore, several studies have suggested that
+the directed graph connecting web pages has a bowtie shape: there are threeBOWTIE
+major categories of web pages that are sometimes referred to as IN, OUT
+and SCC. A web surfer can pass from any page in IN to any page in SCC, by
+following hyperlinks. Likewise, a surfer can pass from page in SCC to any
+page in OUT. Finally, the surfer can surf from any page in SCC to any other
+page in SCC. However, it is not possible to pass from a page in SCC to any
+page in IN, or from a page in OUT to a page in SCC (or, consequently, IN).
+Notably, in several studies IN and OUT are roughly equal in size, whereas
+
+1. Cf. Zipf\u2019s law of the distribution of words in text in Chapter 5 (page 90), which is a power
+law with \u03b1 = 1.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.2 Web characteristics 427
+
+\u25ee Figure 19.4 The bowtie structure of the Web. Here we show one tube and three
+tendrils.
+
+SCC is somewhat larger; most web pages fall into one of these three sets. The
+remaining pages form into tubes that are small sets of pages outside SCC that
+lead directly from IN to OUT, and tendrils that either lead nowhere from IN,
+or from nowhere to OUT. Figure 19.4 illustrates this structure of the Web.
+
+19.2.2 Spam
+
+Early in the history of web search, it became clear that web search engines
+were an important means for connecting advertisers to prospective buyers.
+A user searching for maui golf real estate is not merely seeking news or en-
+tertainment on the subject of housing on golf courses on the island of Maui,
+but instead likely to be seeking to purchase such a property. Sellers of such
+property and their agents, therefore, have a strong incentive to create web
+pages that rank highly on this query. In a search engine whose scoring was
+based on term frequencies, a web page with numerous repetitions of maui golf
+real estate would rank highly. This led to the first generation of spam, whichSPAM
+(in the context of web search) is the manipulation of web page content for
+the purpose of appearing high up in search results for selected keywords.
+To avoid irritating users with these repetitions, sophisticated spammers re-
+sorted to such tricks as rendering these repeated terms in the same color as
+the background. Despite these words being consequently invisible to the hu-
+man user, a search engine indexer would parse the invisible words out of
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+428 19 Web search basics
+
+\u25ee Figure 19.5 Cloaking as used by spammers.
+
+the HTML representation of the web page and index these words as being
+present in the page.
+
+At its root, spam stems from the heterogeneity of motives in content cre-
+ation on the Web. In particular, many web content creators have commercial
+motives and therefore stand to gain from manipulating search engine results.
+You might argue that this is no different from a company that uses large fonts
+to list its phone numbers in the yellow pages; but this generally costs the
+company more and is thus a fairer mechanism. A more apt analogy, perhaps,
+is the use of company names beginning with a long string of A\u2019s to be listed
+early in a yellow pages category. In fact, the yellow pages\u2019 model of com-
+panies paying for larger/darker fonts has been replicated in web search: in
+many search engines, it is possible to pay to have one\u2019s web page included
+in the search engine\u2019s index \u2013 a model known as paid inclusion. DifferentPAID INCLUSION
+search engines have different policies on whether to allow paid inclusion,
+and whether such a payment has any effect on ranking in search results.
+
+Search engines soon became sophisticated enough in their spam detection
+to screen out a large number of repetitions of particular keywords. Spam-
+mers responded with a richer set of spam techniques, the best known of
+which we now describe. The first of these techniques is cloaking, shown in
+Figure 19.5. Here, the spammer\u2019s web server returns different pages depend-
+ing on whether the http request comes from a web search engine\u2019s crawler
+(the part of the search engine that gathers web pages, to be described in
+Chapter 20), or from a human user\u2019s browser. The former causes the web
+page to be indexed by the search engine under misleading keywords. When
+the user searches for these keywords and elects to view the page, he receives
+a web page that has altogether different content than that indexed by the
+search engine. Such deception of search indexers is unknown in the tra-
+ditional world of information retrieval; it stems from the fact that the rela-
+tionship between page publishers and web search engines is not completely
+collaborative.
+
+A doorway page contains text and metadata carefully chosen to rank highly
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.3 Advertising as the economic model 429
+
+on selected search keywords. When a browser requests the doorway page, it
+is redirected to a page containing content of a more commercial nature. More
+complex spamming techniques involve manipulation of the metadata related
+to a page including (for reasons we will see in Chapter 21) the links into a
+web page. Given that spamming is inherently an economically motivated
+activity, there has sprung around it an industry of Search Engine Optimizers,SEARCH ENGINE
+
+OPTIMIZERS or SEOs to provide consultancy services for clients who seek to have their
+web pages rank highly on selected keywords. Web search engines frown on
+this business of attempting to decipher and adapt to their proprietary rank-
+ing techniques and indeed announce policies on forms of SEO behavior they
+do not tolerate (and have been known to shut down search requests from cer-
+tain SEOs for violation of these). Inevitably, the parrying between such SEOs
+(who gradually infer features of each web search engine\u2019s ranking methods)
+and the web search engines (who adapt in response) is an unending struggle;
+indeed, the research sub-area of adversarial information retrieval has sprung upADVERSARIAL
+
+INFORMATION
+
+RETRIEVAL
+around this battle. To combat spammers who manipulate the text of their
+web pages is the exploitation of the link structure of the Web \u2013 a technique
+known as link analysis. The first web search engine known to apply link anal-
+ysis on a large scale (to be detailed in Chapter 21) was Google, although all
+web search engines currently make use of it (and correspondingly, spam-
+mers now invest considerable effort in subverting it \u2013 this is known as linkLINK SPAM
+spam).
+
+? Exercise 19.1If the number of pages with in-degree i is proportional to 1/i2.1, what is the probabil-
+ity that a randomly chosen web page has in-degree 1?
+
+Exercise 19.2
+
+If the number of pages with in-degree i is proportional to 1/i2.1, what is the average
+in-degree of a web page?
+
+Exercise 19.3
+
+If the number of pages with in-degree i is proportional to 1/i2.1, then as the largest
+in-degree goes to infinity, does the fraction of pages with in-degree i grow, stay the
+same, or diminish? How would your answer change for values of the exponent other
+than 2.1?
+
+Exercise 19.4
+
+The average in-degree of all nodes in a snapshot of the web graph is 9. What can we
+say about the average out-degree of all nodes in this snapshot?
+
+19.3 Advertising as the economic model
+
+Early in the history of the Web, companies used graphical banner advertise-
+ments on web pages at popular websites (news and entertainment sites such
+as MSN, America Online, Yahoo! and CNN). The primary purpose of these
+advertisements was branding: to convey to the viewer a positive feeling about
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+430 19 Web search basics
+
+the brand of the company placing the advertisement. Typically these adver-
+tisements are priced on a cost per mil (CPM) basis: the cost to the company ofCPM
+having its banner advertisement displayed 1000 times. Some websites struck
+contracts with their advertisers in which an advertisement was priced not by
+the number of times it is displayed (also known as impressions), but rather
+by the number of times it was clicked on by the user. This pricing model is
+known as the cost per click (CPC) model. In such cases, clicking on the adver-CPC
+tisement leads the user to a web page set up by the advertiser, where the user
+is induced to make a purchase. Here the goal of the advertisement is not so
+much brand promotion as to induce a transaction. This distinction between
+brand and transaction-oriented advertising was already widely recognized
+in the context of conventional media such as broadcast and print. The inter-
+activity of the web allowed the CPC billing model \u2013 clicks could be metered
+and monitored by the website and billed to the advertiser.
+
+The pioneer in this direction was a company named Goto, which changed
+its name to Overture prior to eventual acquisition by Yahoo! Goto was not,
+in the traditional sense, a search engine; rather, for every query term q it ac-
+cepted bids from companies who wanted their web page shown on the query
+q. In response to the query q, Goto would return the pages of all advertisers
+who bid for q, ordered by their bids. Furthermore, when the user clicked
+on one of the returned results, the corresponding advertiser would make a
+payment to Goto (in the initial implementation, this payment equaled the
+advertiser\u2019s bid for q).
+
+Several aspects of Goto\u2019s model are worth highlighting. First, a user typing
+the query q into Goto\u2019s search interface was actively expressing an interest
+and intent related to the query q. For instance, a user typing golf clubs is more
+likely to be imminently purchasing a set than one who is simply browsing
+news on golf. Second, Goto only got compensated when a user actually ex-
+pressed interest in an advertisement \u2013 as evinced by the user clicking the ad-
+vertisement. Taken together, these created a powerful mechanism by which
+to connect advertisers to consumers, quickly raising the annual revenues of
+Goto/Overture into hundreds of millions of dollars. This style of search en-
+gine came to be known variously as sponsored search or search advertising.SPONSORED SEARCH
+
+SEARCH ADVERTISING Given these two kinds of search engines \u2013 the \u201cpure\u201d search engines such
+as Google and Altavista, versus the sponsored search engines \u2013 the logi-
+cal next step was to combine them into a single user experience. Current
+search engines follow precisely this model: they provide pure search results
+(generally known as algorithmic search results) as the primary response to aALGORITHMIC SEARCH
+user\u2019s search, together with sponsored search results displayed separately
+and distinctively to the right of the algorithmic results. This is shown in Fig-
+ure 19.6. Retrieving sponsored search results and ranking them in response
+to a query has now become considerably more sophisticated than the sim-
+ple Goto scheme; the process entails a blending of ideas from information
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.3 Advertising as the economic model 431
+
+\u25ee Figure 19.6 Search advertising triggered by query keywords. Here the query A320
+returns algorithmic search results about the Airbus aircraft, together with advertise-
+ments for various non-aircraft goods numbered A320, that advertisers seek to market
+to those querying on this query. The lack of advertisements for the aircraft reflects the
+fact that few marketers attempt to sell A320 aircraft on the web.
+
+retrieval and microeconomics, and is beyond the scope of this book. For
+advertisers, understanding how search engines do this ranking and how to
+allocate marketing campaign budgets to different keywords and to different
+sponsored search engines has become a profession known as search engineSEARCH ENGINE
+
+MARKETING marketing (SEM).
+The inherently economic motives underlying sponsored search give rise
+
+to attempts by some participants to subvert the system to their advantage.
+This can take many forms, one of which is known as click spam. There isCLICK SPAM
+currently no universally accepted definition of click spam. It refers (as the
+name suggests) to clicks on sponsored search results that are not from bona
+fide search users. For instance, a devious advertiser may attempt to exhaust
+the advertising budget of a competitor by clicking repeatedly (through the
+use of a robotic click generator) on that competitor\u2019s sponsored search ad-
+vertisements. Search engines face the challenge of discerning which of the
+clicks they observe are part of a pattern of click spam, to avoid charging their
+advertiser clients for such clicks.
+
+? Exercise 19.5The Goto method ranked advertisements matching a query by bid: the highest-bidding
+advertiser got the top position, the second-highest the next, and so on. What can go
+wrong with this when the highest-bidding advertiser places an advertisement that is
+irrelevant to the query? Why might an advertiser with an irrelevant advertisement
+bid high in this manner?
+
+Exercise 19.6
+
+Suppose that, in addition to bids, we had for each advertiser their click-through rate:
+the ratio of the historical number of times users click on their advertisement to the
+number of times the advertisement was shown. Suggest a modification of the Goto
+scheme that exploits this data to avoid the problem in Exercise 19.5 above.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+432 19 Web search basics
+
+19.4 The search user experience
+
+It is crucial that we understand the users of web search as well. This is
+again a significant change from traditional information retrieval, where users
+were typically professionals with at least some training in the art of phrasing
+queries over a well-authored collection whose style and structure they un-
+derstood well. In contrast, web search users tend to not know (or care) about
+the heterogeneity of web content, the syntax of query languages and the art
+of phrasing queries; indeed, a mainstream tool (as web search has come to
+become) should not place such onerous demands on billions of people. A
+range of studies has concluded that the average number of keywords in a
+web search is somewhere between 2 and 3. Syntax operators (Boolean con-
+nectives, wildcards, etc.) are seldom used, again a result of the composition
+of the audience \u2013 \u201cnormal\u201d people, not information scientists.
+
+It is clear that the more user traffic a web search engine can attract, the
+more revenue it stands to earn from sponsored search. How do search en-
+gines differentiate themselves and grow their traffic? Here Google identified
+two principles that helped it grow at the expense of its competitors: (1) a
+focus on relevance, specifically precision rather than recall in the first few re-
+sults; (2) a user experience that is lightweight, meaning that both the search
+query page and the search results page are uncluttered and almost entirely
+textual, with very few graphical elements. The effect of the first was simply
+to save users time in locating the information they sought. The effect of the
+second is to provide a user experience that is extremely responsive, or at any
+rate not bottlenecked by the time to load the search query or results page.
+
+19.4.1 User query needs
+
+There appear to be three broad categories into which common web search
+queries can be grouped: (i) informational, (ii) navigational and (iii) transac-
+tional. We now explain these categories; it should be clear that some queries
+will fall in more than one of these categories, while others will fall outside
+them.
+
+Informational queries seek general information on a broad topic, such asINFORMATIONAL
+QUERIES leukemia or Provence. There is typically not a single web page that con-
+
+tains all the information sought; indeed, users with informational queries
+typically try to assimilate information from multiple web pages.
+
+Navigational queries seek the website or home page of a single entity that theNAVIGATIONAL
+QUERIES user has in mind, say Lufthansa airlines. In such cases, the user\u2019s expectation
+
+is that the very first search result should be the home page of Lufthansa.
+The user is not interested in a plethora of documents containing the term
+Lufthansa; for such a user, the best measure of user satisfaction is precision at
+1.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.5 Index size and estimation 433
+
+A transactional query is one that is a prelude to the user performing a trans-TRANSACTIONAL
+QUERY action on the Web \u2013 such as purchasing a product, downloading a file or
+
+making a reservation. In such cases, the search engine should return results
+listing services that provide form interfaces for such transactions.
+
+Discerning which of these categories a query falls into can be challeng-
+ing. The category not only governs the algorithmic search results, but the
+suitability of the query for sponsored search results (since the query may re-
+veal an intent to purchase). For navigational queries, some have argued that
+the search engine should return only a single result or even the target web
+page directly. Nevertheless, web search engines have historically engaged in
+a battle of bragging rights over which one indexes more web pages. Does
+the user really care? Perhaps not, but the media does highlight estimates
+(often statistically indefensible) of the sizes of various search engines. Users
+are influenced by these reports and thus, search engines do have to pay at-
+tention to how their index sizes compare to competitors\u2019. For informational
+(and to a lesser extent, transactional) queries, the user does care about the
+comprehensiveness of the search engine.
+
+Figure 19.7 shows a composite picture of a web search engine including
+the crawler, as well as both the web page and advertisement indexes. The
+portion of the figure under the curved dashed line is internal to the search
+engine.
+
+19.5 Index size and estimation
+
+To a first approximation, comprehensiveness grows with index size, although
+it does matter which specific pages a search engine indexes \u2013 some pages are
+more informative than others. It is also difficult to reason about the fraction
+of the Web indexed by a search engine, because there is an infinite number of
+dynamic web pages; for instance, http://www.yahoo.com/any_string
+returns a valid HTML page rather than an error, politely informing the user
+that there is no such page at Yahoo! Such a "soft 404 error" is only one exam-
+ple of many ways in which web servers can generate an infinite number of
+valid web pages. Indeed, some of these are malicious spider traps devised
+to cause a search engine\u2019s crawler (the component that systematically gath-
+ers web pages for the search engine\u2019s index, described in Chapter 20) to stay
+within a spammer\u2019s website and index many pages from that site.
+
+We could ask the following better-defined question: given two search en-
+gines, what are the relative sizes of their indexes? Even this question turns
+out to be imprecise, because:
+
+1. In response to queries a search engine can return web pages whose con-
+tents it has not (fully or even partially) indexed. For one thing, search
+engines generally index only the first few thousand words in a web page.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+434 19 Web search basics
+
+T h e W e b A d i n d e x e s
+
+W e b c r a w l e r
+I n d e x e r
+
+I n d e x e s
+S e a r c h
+
+U s e r
+
+\u25ee Figure 19.7 The various components of a web search engine.
+
+In some cases, a search engine is aware of a page p that is linked to by pages
+it has indexed, but has not indexed p itself. As we will see in Chapter 21,
+it is still possible to meaningfully return p in search results.
+
+2. Search engines generally organize their indexes in various tiers and parti-
+tions, not all of which are examined on every search (recall tiered indexes
+from Section 7.2.1). For instance, a web page deep inside a website may be
+indexed but not retrieved on general web searches; it is however retrieved
+as a result on a search that a user has explicitly restricted to that website
+(such site-specific search is offered by most web search engines).
+
+Thus, search engine indexes include multiple classes of indexed pages, so
+that there is no single measure of index size. These issues notwithstanding,
+a number of techniques have been devised for crude estimates of the ratio of
+the index sizes of two search engines, E1 and E2. The basic hypothesis under-
+lying these techniques is that each search engine indexes a fraction of the Web
+chosen independently and uniformly at random. This involves some ques-
+tionable assumptions: first, that there is a finite size for the Web from which
+each search engine chooses a subset, and second, that each engine chooses
+an independent, uniformly chosen subset. As will be clear from the discus-
+sion of crawling in Chapter 20, this is far from true. However, if we begin
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.5 Index size and estimation 435
+
+with these assumptions, then we can invoke a classical estimation technique
+known as the capture-recapture method.CAPTURE-RECAPTURE
+
+METHOD Suppose that we could pick a random page from the index of E1 and test
+whether it is in E2\u2019s index and symmetrically, test whether a random page
+from E2 is in E1. These experiments give us fractions x and y such that our
+estimate is that a fraction x of the pages in E1 are in E2, while a fraction y of
+the pages in E2 are in E1. Then, letting |Ei| denote the size of the index of
+search engine Ei, we have
+
+x|E1| \u2248 y|E2|,
+
+from which we have the form we will use
+
+|E1|
+
+|E2|
+\u2248
+
+y
+
+x
+.(19.1)
+
+If our assumption about E1 and E2 being independent and uniform random
+subsets of the Web were true, and our sampling process unbiased, then Equa-
+tion (19.1) should give us an unbiased estimator for |E1|/|E2|. We distinguish
+between two scenarios here. Either the measurement is performed by some-
+one with access to the index of one of the search engines (say an employee of
+E1), or the measurement is performed by an independent party with no ac-
+cess to the innards of either search engine. In the former case, we can simply
+pick a random document from one index. The latter case is more challeng-
+ing; by picking a random page from one search engine from outside the search
+engine, then verify whether the random page is present in the other search
+engine.
+
+To implement the sampling phase, we might generate a random page from
+the entire (idealized, finite) Web and test it for presence in each search engine.
+Unfortunately, picking a web page uniformly at random is a difficult prob-
+lem. We briefly outline several attempts to achieve such a sample, pointing
+out the biases inherent to each; following this we describe in some detail one
+technique that much research has built on.
+
+1. Random searches: Begin with a search log of web searches; send a random
+search from this log to E1 and a random page from the results. Since such
+logs are not widely available outside a search engine, one implementation
+is to trap all search queries going out of a work group (say scientists in a
+research center) that agrees to have all its searches logged. This approach
+has a number of issues, including the bias from the types of searches made
+by the work group. Further, a random document from the results of such
+a random search to E1 is not the same as a random document from E1.
+
+2. Random IP addresses: A second approach is to generate random IP ad-
+dresses and send a request to a web server residing at the random ad-
+dress, collecting all pages at that server. The biases here include the fact
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+436 19 Web search basics
+
+that many hosts might share one IP (due to a practice known as virtual
+hosting) or not accept http requests from the host where the experiment
+is conducted. Furthermore, this technique is more likely to hit one of the
+many sites with few pages, skewing the document probabilities; we may
+be able to correct for this effect if we understand the distribution of the
+number of pages on websites.
+
+3. Random walks: If the web graph were a strongly connected directed graph,
+we could run a random walk starting at an arbitrary web page. This
+walk would converge to a steady state distribution (see Chapter 21, Sec-
+tion 21.2.1 for more background material on this), from which we could in
+principle pick a web page with a fixed probability. This method, too has
+a number of biases. First, the Web is not strongly connected so that, even
+with various corrective rules, it is difficult to argue that we can reach a
+steady state distribution starting from any page. Second, the time it takes
+for the random walk to settle into this steady state is unknown and could
+exceed the length of the experiment.
+
+Clearly each of these approaches is far from perfect. We now describe a
+fourth sampling approach, random queries. This approach is noteworthy for
+two reasons: it has been successfully built upon for a series of increasingly
+refined estimates, and conversely it has turned out to be the approach most
+likely to be misinterpreted and carelessly implemented, leading to mislead-
+ing measurements. The idea is to pick a page (almost) uniformly at random
+from a search engine\u2019s index by posing a random query to it. It should be
+clear that picking a set of random terms from (say) Webster\u2019s dictionary is
+not a good way of implementing this idea. For one thing, not all vocabulary
+terms occur equally often, so this approach will not result in documents be-
+ing chosen uniformly at random from the search engine. For another, there
+are a great many terms in web documents that do not occur in a standard
+dictionary such as Webster\u2019s. To address the problem of vocabulary terms
+not in a standard dictionary, we begin by amassing a sample web dictionary.
+This could be done by crawling a limited portion of the Web, or by crawling a
+manually-assembled representative subset of the Web such as Yahoo! (as was
+done in the earliest experiments with this method). Consider a conjunctive
+query with two or more randomly chosen words from this dictionary.
+
+Operationally, we proceed as follows: we use a random conjunctive query
+on E1 and pick from the top 100 returned results a page p at random. We
+then test p for presence in E2 by choosing 6-8 low-frequency terms in p and
+using them in a conjunctive query for E2. We can improve the estimate by
+repeating the experiment a large number of times. Both the sampling process
+and the testing process have a number of issues.
+
+1. Our sample is biased towards longer documents.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.6 Near-duplicates and shingling 437
+
+2. Picking from the top 100 results of E1 induces a bias from the ranking
+algorithm of E1. Picking from all the results of E1 makes the experiment
+slower. This is particularly so because most web search engines put up
+defenses against excessive robotic querying.
+
+3. During the checking phase, a number of additional biases are introduced:
+for instance, E2 may not handle 8-word conjunctive queries properly.
+
+4. Either E1 or E2 may refuse to respond to the test queries, treating them as
+robotic spam rather than as bona fide queries.
+
+5. There could be operational problems like connection time-outs.
+
+A sequence of research has built on this basic paradigm to eliminate some
+of these issues; there is no perfect solution yet, but the level of sophistica-
+tion in statistics for understanding the biases is increasing. The main idea
+is to address biases by estimating, for each document, the magnitude of the
+bias. From this, standard statistical sampling methods can generate unbi-
+ased samples. In the checking phase, the newer work moves away from
+conjunctive queries to phrase and other queries that appear to be better-
+behaved. Finally, newer experiments use other sampling methods besides
+random queries. The best known of these is document random walk sampling,
+in which a document is chosen by a random walk on a virtual graph de-
+rived from documents. In this graph, nodes are documents; two documents
+are connected by an edge if they share two or more words in common. The
+graph is never instantiated; rather, a random walk on it can be performed by
+moving from a document d to another by picking a pair of keywords in d,
+running a query on a search engine and picking a random document from
+the results. Details may be found in the references in Section 19.7.
+
+? Exercise 19.7Two web search engines A and B each generate a large number of pages uniformly at
+random from their indexes. 30% of A\u2019s pages are present in B\u2019s index, while 50% of
+B\u2019s pages are present in A\u2019s index. What is the number of pages in A\u2019s index relative
+to B\u2019s?
+
+19.6 Near-duplicates and shingling
+
+One aspect we have ignored in the discussion of index size in Section 19.5 is
+duplication: the Web contains multiple copies of the same content. By some
+estimates, as many as 40% of the pages on the Web are duplicates of other
+pages. Many of these are legitimate copies; for instance, certain information
+repositories are mirrored simply to provide redundancy and access reliabil-
+ity. Search engines try to avoid indexing multiple copies of the same content,
+to keep down storage and processing overheads.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+438 19 Web search basics
+
+The simplest approach to detecting duplicates is to compute, for each web
+page, a fingerprint that is a succinct (say 64-bit) digest of the characters on that
+page. Then, whenever the fingerprints of two web pages are equal, we test
+whether the pages themselves are equal and if so declare one of them to be a
+duplicate copy of the other. This simplistic approach fails to capture a crucial
+and widespread phenomenon on the Web: near duplication. In many cases,
+the contents of one web page are identical to those of another except for a
+few characters \u2013 say, a notation showing the date and time at which the page
+was last modified. Even in such cases, we want to be able to declare the two
+pages to be close enough that we only index one copy. Short of exhaustively
+comparing all pairs of web pages, an infeasible task at the scale of billions of
+pages, how can we detect and filter out such near duplicates?
+
+We now describe a solution to the problem of detecting near-duplicate web
+pages. The answer lies in a technique known as shingling. Given a positiveSHINGLING
+integer k and a sequence of terms in a document d, define the k-shingles of
+d to be the set of all consecutive sequences of k terms in d. As an example,
+consider the following text: a rose is a rose is a rose. The 4-shingles for this text
+(k = 4 is a typical value used in the detection of near-duplicate web pages)
+are a rose is a, rose is a rose and is a rose is. The first two of these shingles
+each occur twice in the text. Intuitively, two documents are near duplicates if
+the sets of shingles generated from them are nearly the same. We now make
+this intuition precise, then develop a method for efficiently computing and
+comparing the sets of shingles for all web pages.
+
+Let S(dj) denote the set of shingles of document dj. Recall the Jaccard
+coefficient from page 61, which measures the degree of overlap between
+the sets S(d1) and S(d2) as |S(d1) \u2229 S(d2)|/|S(d1) \u222a S(d2)|; denote this by
+J(S(d1), S(d2)). Our test for near duplication between d1 and d2 is to com-
+pute this Jaccard coefficient; if it exceeds a preset threshold (say, 0.9), we
+declare them near duplicates and eliminate one from indexing. However,
+this does not appear to have simplified matters: we still have to compute
+Jaccard coefficients pairwise.
+
+To avoid this, we use a form of hashing. First, we map every shingle into
+a hash value over a large space, say 64 bits. For j = 1, 2, let H(dj) be the
+corresponding set of 64-bit hash values derived from S(dj). We now invoke
+the following trick to detect document pairs whose sets H() have large Jac-
+card overlaps. Let \u03c0 be a random permutation from the 64-bit integers to the
+64-bit integers. Denote by \u03a0(dj) the set of permuted hash values in H(dj);
+thus for each h \u2208 H(dj), there is a corresponding value \u03c0(h) \u2208 \u03a0(dj).
+
+Let x\u03c0j be the smallest integer in \u03a0(dj). Then
+
+Theorem 19.1.
+
+J(S(d1), S(d2)) = P(x
+\u03c0
+1 = x
+
+\u03c0
+2 ).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.6 Near-duplicates and shingling 439
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+-
+
+0
+
+0
+
+0
+
+0
+
+0
+
+0
+
+0
+
+0
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+264 \u2212 1
+
+Document 1 Document 2
+
+H(d1) H(d2)
+u
+
+1
+u
+
+1
+u
+
+2
+u
+
+2
+u
+
+3
+u
+
+3
+u
+
+4
+u
+
+4
+
+H(d1) and \u03a0(d1) H(d2) and \u03a0(d2)
+u uu uu uu u3 31 14 42 2
+
+3 31 14 42 2
+
+3 3
+
+\u03a0(d1) \u03a0(d2)
+
+x\u03c01 x
+\u03c0
+2
+
+\u25ee Figure 19.8 Illustration of shingle sketches. We see two documents going through
+four stages of shingle sketch computation. In the first step (top row), we apply a 64-bit
+hash to each shingle from each document to obtain H(d1) and H(d2) (circles). Next,
+we apply a random permutation \u03a0 to permute H(d1) and H(d2), obtaining \u03a0(d1)
+and \u03a0(d2) (squares). The third row shows only \u03a0(d1) and \u03a0(d2), while the bottom
+row shows the minimum values x\u03c01 and x
+
+\u03c0
+2 for each document.
+
+Proof. We give the proof in a slightly more general setting: consider a family
+of sets whose elements are drawn from a common universe. View the sets
+as columns of a matrix A, with one row for each element in the universe.
+The element aij = 1 if element i is present in the set Sj that the jth column
+represents.
+
+Let \u03a0 be a random permutation of the rows of A; denote by \u03a0(Sj) the
+column that results from applying \u03a0 to the jth column. Finally, let x\u03c0j be the
+
+index of the first row in which the column \u03a0(Sj) has a 1. We then prove that
+for any two columns j1, j2,
+
+P(x\u03c0j1 = x
+\u03c0
+j2
+) = J(Sj1 , Sj2).
+
+If we can prove this, the theorem follows.
+Consider two columns j1, j2 as shown in Figure 19.9. The ordered pairs of
+
+entries of Sj1 and Sj2 partition the rows into four types: those with 0\u2019s in both
+of these columns, those with a 0 in Sj1 and a 1 in Sj2 , those with a 1 in Sj1
+and a 0 in Sj2 , and finally those with 1\u2019s in both of these columns. Indeed,
+the first four rows of Figure 19.9 exemplify all of these four types of rows.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+440 19 Web search basics
+
+Sj1 Sj2
+0 1
+1 0
+1 1
+0 0
+1 1
+0 1
+
+\u25ee Figure 19.9 Two sets Sj1 and Sj2 ; their Jaccard coefficient is 2/5.
+
+Denote by C00 the number of rows with 0\u2019s in both columns, C01 the second,
+C10 the third and C11 the fourth. Then,
+
+J(Sj1 , Sj2) =
+C11
+
+C01 + C10 + C11
+.(19.2)
+
+To complete the proof by showing that the right-hand side of Equation (19.2)
+equals P(x\u03c0j1 = x
+
+\u03c0
+j2
+), consider scanning columns j1, j2 in increasing row in-
+
+dex until the first non-zero entry is found in either column. Because \u03a0 is a
+random permutation, the probability that this smallest row has a 1 in both
+columns is exactly the right-hand side of Equation (19.2).
+
+Thus, our test for the Jaccard coefficient of the shingle sets is probabilis-
+tic: we compare the computed values x\u03c0i from different documents. If a pair
+coincides, we have candidate near duplicates. Repeat the process indepen-
+dently for 200 random permutations \u03c0 (a choice suggested in the literature).
+Call the set of the 200 resulting values of x\u03c0i the sketch \u03c8(di) of di. We can
+then estimate the Jaccard coefficient for any pair of documents di, dj to be
+|\u03c8i \u2229 \u03c8j|/200; if this exceeds a preset threshold, we declare that di and dj are
+similar.
+
+How can we quickly compute |\u03c8i \u2229 \u03c8j|/200 for all pairs i, j? Indeed, how
+do we represent all pairs of documents that are similar, without incurring
+a blowup that is quadratic in the number of documents? First, we use fin-
+gerprints to remove all but one copy of identical documents. We may also
+remove common HTML tags and integers from the shingle computation, to
+eliminate shingles that occur very commonly in documents without telling
+us anything about duplication. Next we use a union-find algorithm to create
+clusters that contain documents that are similar. To do this, we must accom-
+plish a crucial step: going from the set of sketches to the set of pairs i, j such
+that di and dj are similar.
+
+To this end, we compute the number of shingles in common for any pair of
+documents whose sketches have any members in common. We begin with
+the list < x\u03c0i , di > sorted by x
+
+\u03c0
+i pairs. For each x
+
+\u03c0
+i , we can now generate
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+19.7 References and further reading 441
+
+all pairs i, j for which x\u03c0i is present in both their sketches. From these we
+can compute, for each pair i, j with non-zero sketch overlap, a count of the
+number of x\u03c0i values they have in common. By applying a preset threshold,
+we know which pairs i, j have heavily overlapping sketches. For instance, if
+the threshold were 80%, we would need the count to be at least 160 for any
+i, j. As we identify such pairs, we run the union-find to group documents
+into near-duplicate \u201csyntactic clusters\u201d. This is essentially a variant of the
+single-link clustering algorithm introduced in Section 17.2 (page 382).
+
+One final trick cuts down the space needed in the computation of |\u03c8i \u2229
+\u03c8j|/200 for pairs i, j, which in principle could still demand space quadratic
+in the number of documents. To remove from consideration those pairs i, j
+whose sketches have few shingles in common, we preprocess the sketch for
+each document as follows: sort the x\u03c0i in the sketch, then shingle this sorted
+sequence to generate a set of super-shingles for each document. If two docu-
+ments have a super-shingle in common, we proceed to compute the precise
+value of |\u03c8i \u2229 \u03c8j|/200. This again is a heuristic but can be highly effective
+in cutting down the number of i, j pairs for which we accumulate the sketch
+overlap counts.
+
+? Exercise 19.8Web search engines A and B each crawl a random subset of the same size of the Web.
+Some of the pages crawled are duplicates \u2013 exact textual copies of each other at dif-
+ferent URLs. Assume that duplicates are distributed uniformly amongst the pages
+crawled by A and B. Further, assume that a duplicate is a page that has exactly two
+copies \u2013 no pages have more than two copies. A indexes pages without duplicate
+elimination whereas B indexes only one copy of each duplicate page. The two ran-
+dom subsets have the same size before duplicate elimination. If, 45% of A\u2019s indexed
+URLs are present in B\u2019s index, while 50% of B\u2019s indexed URLs are present in A\u2019s
+index, what fraction of the Web consists of pages that do not have a duplicate?
+
+Exercise 19.9
+
+Instead of using the process depicted in Figure 19.8, consider instead the following
+process for estimating the Jaccard coefficient of the overlap between two sets S1 and
+S2. We pick a random subset of the elements of the universe from which S1 and S2
+are drawn; this corresponds to picking a random subset of the rows of the matrix A in
+the proof. We exhaustively compute the Jaccard coefficient of these random subsets.
+Why is this estimate an unbiased estimator of the Jaccard coefficient for S1 and S2?
+
+Exercise 19.10
+
+Explain why this estimator would be very difficult to use in practice.
+
+19.7 References and further reading
+
+Bush (1945) foreshadowed the Web when he described an information man-
+agement system that he called memex. Berners-Lee et al. (1992) describes
+one of the earliest incarnations of the Web. Kumar et al. (2000) and Broder
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+442 19 Web search basics
+
+et al. (2000) provide comprehensive studies of the Web as a graph. The use
+of anchor text was first described in McBryan (1994). The taxonomy of web
+queries in Section 19.4 is due to Broder (2002). The observation of the power
+law with exponent 2.1 in Section 19.2.1 appeared in Kumar et al. (1999).
+Chakrabarti (2002) is a good reference for many aspects of web search and
+analysis.
+
+The estimation of web search index sizes has a long history of develop-
+ment covered by Bharat and Broder (1998), Lawrence and Giles (1998), Rus-
+mevichientong et al. (2001), Lawrence and Giles (1999), Henzinger et al. (2000),
+Bar-Yossef and Gurevich (2006). The state of the art is Bar-Yossef and Gure-
+vich (2006), including several of the bias-removal techniques mentioned at
+the end of Section 19.5. Shingling was introduced by Broder et al. (1997) and
+used for detecting websites (rather than simply pages) that are identical by
+Bharat et al. (2000).
+
+
+	Web search basics
+	Background and history
+	Web characteristics
+	The web graph
+	Spam
+
+	Advertising as the economic model
+	The search user experience
+	User query needs
+
+	Index size and estimation
+	Near-duplicates and shingling
+	References and further reading
+
+

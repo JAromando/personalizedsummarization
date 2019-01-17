@@ -1,0 +1,2036 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Introduction to Information Retrieval
+
+
+Online edition (c)
+2009 Cambridge UP
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+DRAFT! © April 1, 2009 Cambridge University Press. Feedback welcome. 377
+
+17 Hierarchical clustering
+
+Flat clustering is efficient and conceptually simple, but as we saw in Chap-
+ter 16 it has a number of drawbacks. The algorithms introduced in Chap-
+ter 16 return a flat unstructured set of clusters, require a prespecified num-
+ber of clusters as input and are nondeterministic. Hierarchical clustering (orHIERARCHICAL
+
+CLUSTERING hierarchic clustering) outputs a hierarchy, a structure that is more informative
+than the unstructured set of clusters returned by flat clustering.1 Hierarchical
+clustering does not require us to prespecify the number of clusters and most
+hierarchical algorithms that have been used in IR are deterministic. These ad-
+vantages of hierarchical clustering come at the cost of lower efficiency. The
+most common hierarchical clustering algorithms have a complexity that is at
+least quadratic in the number of documents compared to the linear complex-
+ity of K-means and EM (cf. Section 16.4, page 364).
+
+This chapter first introduces agglomerative hierarchical clustering (Section 17.1)
+and presents four different agglomerative algorithms, in Sections 17.2\u201317.4,
+which differ in the similarity measures they employ: single-link, complete-
+link, group-average, and centroid similarity. We then discuss the optimality
+conditions of hierarchical clustering in Section 17.5. Section 17.6 introduces
+top-down (or divisive) hierarchical clustering. Section 17.7 looks at labeling
+clusters automatically, a problem that must be solved whenever humans in-
+teract with the output of clustering. We discuss implementation issues in
+Section 17.8. Section 17.9 provides pointers to further reading, including ref-
+erences to soft hierarchical clustering, which we do not cover in this book.
+
+There are few differences between the applications of flat and hierarchi-
+cal clustering in information retrieval. In particular, hierarchical clustering
+is appropriate for any of the applications shown in Table 16.1 (page 351; see
+also Section 16.6, page 372). In fact, the example we gave for collection clus-
+tering is hierarchical. In general, we select flat clustering when efficiency
+is important and hierarchical clustering when one of the potential problems
+
+1. In this chapter, we only consider hierarchies that are binary trees like the one shown in Fig-
+ure 17.1 \u2013 but hierarchical clustering can be easily extended to other types of trees.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+378 17 Hierarchical clustering
+
+of flat clustering (not enough structure, predetermined number of clusters,
+non-determinism) is a concern. In addition, many researchers believe that hi-
+erarchical clustering produces better clusters than flat clustering. However,
+there is no consensus on this issue (see references in Section 17.9).
+
+17.1 Hierarchical agglomerative clustering
+
+Hierarchical clustering algorithms are either top-down or bottom-up. Bottom-
+up algorithms treat each document as a singleton cluster at the outset and
+then successively merge (or agglomerate) pairs of clusters until all clusters
+have been merged into a single cluster that contains all documents. Bottom-
+up hierarchical clustering is therefore called hierarchical agglomerative cluster-HIERARCHICAL
+
+AGGLOMERATIVE
+
+CLUSTERING
+ing or HAC. Top-down clustering requires a method for splitting a cluster.
+
+HAC
+It proceeds by splitting clusters recursively until individual documents are
+reached. See Section 17.6. HAC is more frequently used in IR than top-down
+clustering and is the main subject of this chapter.
+
+Before looking at specific similarity measures used in HAC in Sections
+17.2\u201317.4, we first introduce a method for depicting hierarchical clusterings
+graphically, discuss a few key properties of HACs and present a simple algo-
+rithm for computing an HAC.
+
+An HAC clustering is typically visualized as a dendrogram as shown inDENDROGRAM
+Figure 17.1. Each merge is represented by a horizontal line. The y-coordinate
+of the horizontal line is the similarity of the two clusters that were merged,
+where documents are viewed as singleton clusters. We call this similarity the
+combination similarity of the merged cluster. For example, the combinationCOMBINATION
+
+SIMILARITY similarity of the cluster consisting of Lloyd\u2019s CEO questioned and Lloyd\u2019s chief
+/ U.S. grilling in Figure 17.1 is \u2248 0.56. We define the combination similarity
+of a singleton cluster as its document\u2019s self-similarity (which is 1.0 for cosine
+similarity).
+
+By moving up from the bottom layer to the top node, a dendrogram al-
+lows us to reconstruct the history of merges that resulted in the depicted
+clustering. For example, we see that the two documents entitled War hero
+Colin Powell were merged first in Figure 17.1 and that the last merge added
+Ag trade reform to a cluster consisting of the other 29 documents.
+
+A fundamental assumption in HAC is that the merge operation is mono-MONOTONICITY
+tonic. Monotonic means that if s1, s2, . . . , sK\u22121 are the combination similarities
+of the successive merges of an HAC, then s1 \u2265 s2 \u2265 . . . \u2265 sK\u22121 holds. A non-
+monotonic hierarchical clustering contains at least one inversion si < si+1INVERSION
+and contradicts the fundamental assumption that we chose the best merge
+available at each step. We will see an example of an inversion in Figure 17.12.
+
+Hierarchical clustering does not require a prespecified number of clusters.
+However, in some applications we want a partition of disjoint clusters just as
+
+
+
+O
+n
+
+lin
+e ed
+
+itio
+n
+
+ (c)
+2009 C
+am
+
+b
+rid
+
+g
+e U
+
+P
+
+17.1
+H
+
+ierarchical
+agglom
+
+erative
+clu
+
+sterin
+g
+
+3
+7
+
+9
+
+1.0 0.8 0.6 0.4 0.2 0.0
+
+Ag trade reform.
+Back\u2212to\u2212school spending is up
+
+Lloyd\u2019s CEO questioned
+Lloyd\u2019s chief / U.S. grilling
+
+Viag stays positive
+Chrysler / Latin America
+
+Ohio Blue Cross
+Japanese prime minister / Mexico
+
+CompuServe reports loss
+Sprint / Internet access service
+
+Planet Hollywood
+Trocadero: tripling of revenues
+
+German unions split
+War hero Colin Powell
+War hero Colin Powell
+
+Oil prices slip
+Chains may raise prices
+
+Clinton signs law
+Lawsuit against tobacco companies
+
+suits against tobacco firms
+Indiana tobacco lawsuit
+
+Most active stocks
+Mexican markets
+
+Hog prices tumble
+NYSE closing averages
+
+British FTSE index
+Fed holds interest rates steady
+
+Fed to keep interest rates steady
+Fed keeps interest rates steady
+Fed keeps interest rates steady
+
+\u25ee
+F
+
+ig
+u
+
+re
+1
+7
+.1
+
+A
+d
+
+en
+d
+
+ro
+g
+
+ram
+o
+
+f
+a
+
+sin
+g
+
+le-lin
+k
+
+clu
+sterin
+
+g
+o
+
+f
+30
+
+d
+o
+
+cu
+m
+
+en
+ts
+
+fro
+m
+
+R
+eu
+
+ters-R
+C
+
+V
+1.
+
+T
+w
+
+o
+p
+
+o
+ssib
+
+le
+cu
+
+ts
+o
+
+f
+th
+
+e
+d
+
+en
+d
+
+ro
+g
+
+ram
+are
+
+sh
+o
+
+w
+n
+
+:
+at
+
+0.4
+in
+
+to
+24
+
+clu
+sters
+
+an
+d
+
+at
+0.1
+
+in
+to
+
+12
+clu
+
+sters.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+380 17 Hierarchical clustering
+
+in flat clustering. In those cases, the hierarchy needs to be cut at some point.
+A number of criteria can be used to determine the cutting point:
+
+\u2022 Cut at a prespecified level of similarity. For example, we cut the dendro-
+gram at 0.4 if we want clusters with a minimum combination similarity
+of 0.4. In Figure 17.1, cutting the diagram at y = 0.4 yields 24 clusters
+(grouping only documents with high similarity together) and cutting it at
+y = 0.1 yields 12 clusters (one large financial news cluster and 11 smaller
+clusters).
+
+\u2022 Cut the dendrogram where the gap between two successive combination
+similarities is largest. Such large gaps arguably indicate \u201cnatural\u201d clus-
+terings. Adding one more cluster decreases the quality of the clustering
+significantly, so cutting before this steep decrease occurs is desirable. This
+strategy is analogous to looking for the knee in the K-means graph in Fig-
+ure 16.8 (page 366).
+
+\u2022 Apply Equation (16.11) (page 366):
+
+K = arg min
+K\u2032
+
+[RSS(K\u2032) + \u03bbK\u2032]
+
+where K\u2032 refers to the cut of the hierarchy that results in K\u2032 clusters, RSS is
+the residual sum of squares and \u03bb is a penalty for each additional cluster.
+Instead of RSS, another measure of distortion can be used.
+
+\u2022 As in flat clustering, we can also prespecify the number of clusters K and
+select the cutting point that produces K clusters.
+
+A simple, naive HAC algorithm is shown in Figure 17.2. We first compute
+the N × N similarity matrix C. The algorithm then executes N \u2212 1 steps
+of merging the currently most similar clusters. In each iteration, the two
+most similar clusters are merged and the rows and columns of the merged
+cluster i in C are updated.2 The clustering is stored as a list of merges in
+A. I indicates which clusters are still available to be merged. The function
+SIM(i, m, j) computes the similarity of cluster j with the merge of clusters i
+and m. For some HAC algorithms, SIM(i, m, j) is simply a function of C[j][i]
+and C[j][m], for example, the maximum of these two values for single-link.
+
+We will now refine this algorithm for the different similarity measures
+of single-link and complete-link clustering (Section 17.2) and group-average
+and centroid clustering (Sections 17.3 and 17.4). The merge criteria of these
+four variants of HAC are shown in Figure 17.3.
+
+2. We assume that we use a deterministic method for breaking ties, such as always choose the
+merge that is the first cluster with respect to a total ordering of the subsets of the document set
+D.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.1 Hierarchical agglomerative clustering 381
+
+SIMPLEHAC(d1, . . . , dN)
+1 for n\u2190 1 to N
+2 do for i\u2190 1 to N
+3 do C[n][i]\u2190 SIM(dn, di)
+4 I[n]\u2190 1 (keeps track of active clusters)
+5 A\u2190 [] (assembles clustering as a sequence of merges)
+6 for k\u2190 1 to N \u2212 1
+7 do \u3008i, m\u3009 \u2190 arg max{\u3008i,m\u3009:i 6=m\u2227I[i]=1\u2227I[m]=1}C[i][m]
+8 A.APPEND(\u3008i, m\u3009) (store merge)
+9 for j\u2190 1 to N
+
+10 do C[i][j]\u2190 SIM(i, m, j)
+11 C[j][i]\u2190 SIM(i, m, j)
+12 I[m]\u2190 0 (deactivate cluster)
+13 return A
+
+\u25ee Figure 17.2 A simple, but inefficient HAC algorithm.
+
+b
+
+b
+
+b
+
+b
+
+(a) single-link: maximum similarity
+
+b
+
+b
+
+b
+
+b
+
+(b) complete-link: minimum similarity
+
+b
+
+b
+
+b
+
+b
+
+(c) centroid: average inter-similarity
+
+b
+
+b
+
+b
+
+b
+
+(d) group-average: average of all similarities
+
+\u25ee Figure 17.3 The different notions of cluster similarity used by the four HAC al-
+gorithms. An inter-similarity is a similarity between two documents from different
+clusters.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+382 17 Hierarchical clustering
+
+0 1 2 3 4
+0
+
+1
+
+2
+
+3
+
+×
+
+d5
+
+×
+
+d6
+
+×
+
+d7
+
+×
+
+d8
+
+×
+
+d1
+
+×
+
+d2
+
+×
+
+d3
+
+×
+
+d4
+
+0 1 2 3 4
+0
+
+1
+
+2
+
+3
+
+×
+
+d5
+
+×
+
+d6
+
+×
+
+d7
+
+×
+
+d8
+
+×
+
+d1
+
+×
+
+d2
+
+×
+
+d3
+
+×
+
+d4
+
+\u25ee Figure 17.4 A single-link (left) and complete-link (right) clustering of eight doc-
+uments. The ellipses correspond to successive clustering stages. Left: The single-link
+similarity of the two upper two-point clusters is the similarity of d2 and d3 (solid
+line), which is greater than the single-link similarity of the two left two-point clusters
+(dashed line). Right: The complete-link similarity of the two upper two-point clusters
+is the similarity of d1 and d4 (dashed line), which is smaller than the complete-link
+similarity of the two left two-point clusters (solid line).
+
+17.2 Single-link and complete-link clustering
+
+In single-link clustering or single-linkage clustering, the similarity of two clus-SINGLE-LINK
+CLUSTERING ters is the similarity of their most similar members (see Figure 17.3, (a))3. This
+
+single-link merge criterion is local. We pay attention solely to the area where
+the two clusters come closest to each other. Other, more distant parts of the
+cluster and the clusters\u2019 overall structure are not taken into account.
+
+In complete-link clustering or complete-linkage clustering, the similarity of twoCOMPLETE-LINK
+CLUSTERING clusters is the similarity of their most dissimilar members (see Figure 17.3, (b)).
+
+This is equivalent to choosing the cluster pair whose merge has the smallest
+diameter. This complete-link merge criterion is non-local; the entire structure
+of the clustering can influence merge decisions. This results in a preference
+for compact clusters with small diameters over long, straggly clusters, but
+also causes sensitivity to outliers. A single document far from the center can
+increase diameters of candidate merge clusters dramatically and completely
+change the final clustering.
+
+Figure 17.4 depicts a single-link and a complete-link clustering of eight
+documents. The first four steps, each producing a cluster consisting of a pair
+of two documents, are identical. Then single-link clustering joins the up-
+per two pairs (and after that the lower two pairs) because on the maximum-
+similarity definition of cluster similarity, those two clusters are closest. Complete-
+
+3. Throughout this chapter, we equate similarity with proximity in 2D depictions of clustering.
+
+
+
+O
+n
+
+lin
+e ed
+
+itio
+n
+
+ (c)
+2009 C
+am
+
+b
+rid
+
+g
+e U
+
+P
+
+17.2
+S
+
+in
+gle-lin
+
+k
+an
+
+d
+com
+
+plete-lin
+k
+
+clu
+sterin
+
+g
+3
+
+8
+3
+
+1.0 0.8 0.6 0.4 0.2 0.0
+
+NYSE closing averages
+Hog prices tumble
+
+Oil prices slip
+Ag trade reform.
+
+Chrysler / Latin America
+Japanese prime minister / Mexico
+
+Fed holds interest rates steady
+Fed to keep interest rates steady
+
+Fed keeps interest rates steady
+Fed keeps interest rates steady
+
+Mexican markets
+British FTSE index
+
+War hero Colin Powell
+War hero Colin Powell
+
+Lloyd\u2019s CEO questioned
+Lloyd\u2019s chief / U.S. grilling
+
+Ohio Blue Cross
+Lawsuit against tobacco companies
+
+suits against tobacco firms
+Indiana tobacco lawsuit
+
+Viag stays positive
+Most active stocks
+
+CompuServe reports loss
+Sprint / Internet access service
+
+Planet Hollywood
+Trocadero: tripling of revenues
+
+Back\u2212to\u2212school spending is up
+German unions split
+
+Chains may raise prices
+Clinton signs law
+
+\u25ee
+F
+
+ig
+u
+
+re
+1
+7
+.5
+
+A
+d
+
+en
+d
+
+ro
+g
+
+ram
+o
+
+f
+a
+
+co
+m
+
+p
+lete-lin
+
+k
+clu
+
+sterin
+g
+
+.
+T
+
+h
+e
+
+sam
+e
+
+30
+d
+
+o
+cu
+
+m
+en
+
+ts
+w
+
+ere
+clu
+
+stered
+w
+
+ith
+sin
+
+g
+le-lin
+
+k
+clu
+
+sterin
+g
+
+in
+F
+
+ig
+u
+
+re
+17.1.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+384 17 Hierarchical clustering
+
+× × × × × ×
+
+× × × × × ×
+
+\u25ee Figure 17.6 Chaining in single-link clustering. The local criterion in single-link
+clustering can cause undesirable elongated clusters.
+
+link clustering joins the left two pairs (and then the right two pairs) because
+those are the closest pairs according to the minimum-similarity definition of
+cluster similarity.4
+
+Figure 17.1 is an example of a single-link clustering of a set of documents
+and Figure 17.5 is the complete-link clustering of the same set. When cutting
+the last merge in Figure 17.5, we obtain two clusters of similar size (doc-
+uments 1\u201316, from NYSE closing averages to Lloyd\u2019s chief / U.S. grilling, and
+documents 17\u201330, from Ohio Blue Cross to Clinton signs law). There is no cut
+of the dendrogram in Figure 17.1 that would give us an equally balanced
+clustering.
+
+Both single-link and complete-link clustering have graph-theoretic inter-
+pretations. Define sk to be the combination similarity of the two clusters
+merged in step k, and G(sk) the graph that links all data points with a similar-
+ity of at least sk. Then the clusters after step k in single-link clustering are the
+connected components of G(sk) and the clusters after step k in complete-link
+clustering are maximal cliques of G(sk). A connected component is a maximalCONNECTED
+
+COMPONENT set of connected points such that there is a path connecting each pair. A clique
+CLIQUE is a set of points that are completely linked with each other.
+
+These graph-theoretic interpretations motivate the terms single-link and
+complete-link clustering. Single-link clusters at step k are maximal sets of
+points that are linked via at least one link (a single link) of similarity s \u2265 sk;
+complete-link clusters at step k are maximal sets of points that are completely
+linked with each other via links of similarity s \u2265 sk.
+
+Single-link and complete-link clustering reduce the assessment of cluster
+quality to a single similarity between a pair of documents: the two most sim-
+ilar documents in single-link clustering and the two most dissimilar docu-
+ments in complete-link clustering. A measurement based on one pair cannot
+fully reflect the distribution of documents in a cluster. It is therefore not sur-
+prising that both algorithms often produce undesirable clusters. Single-link
+clustering can produce straggling clusters as shown in Figure 17.6. Since the
+merge criterion is strictly local, a chain of points can be extended for long
+
+4. If you are bothered by the possibility of ties, assume that d1 has coordinates (1 + \u01eb, 3\u2212 \u01eb) and
+that all other points have integer coordinates.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.2 Single-link and complete-link clustering 385
+
+0 1 2 3 4 5 6 7
+0
+
+1 ×
+
+d1
+×
+
+d2
+×
+
+d3
+×
+
+d4
+×
+
+d5
+
+\u25ee Figure 17.7 Outliers in complete-link clustering. The five documents have
+the x-coordinates 1 + 2\u01eb, 4, 5 + 2\u01eb, 6 and 7 \u2212 \u01eb. Complete-link clustering cre-
+ates the two clusters shown as ellipses. The most intuitive two-cluster cluster-
+ing is {{d1}, {d2, d3, d4, d5}}, but in complete-link clustering, the outlier d1 splits
+{d2, d3, d4, d5} as shown.
+
+distances without regard to the overall shape of the emerging cluster. This
+effect is called chaining.CHAINING
+
+The chaining effect is also apparent in Figure 17.1. The last eleven merges
+of the single-link clustering (those above the 0.1 line) add on single docu-
+ments or pairs of documents, corresponding to a chain. The complete-link
+clustering in Figure 17.5 avoids this problem. Documents are split into two
+groups of roughly equal size when we cut the dendrogram at the last merge.
+In general, this is a more useful organization of the data than a clustering
+with chains.
+
+However, complete-link clustering suffers from a different problem. It
+pays too much attention to outliers, points that do not fit well into the global
+structure of the cluster. In the example in Figure 17.7 the four documents
+d2, d3, d4, d5 are split because of the outlier d1 at the left edge (Exercise 17.1).
+Complete-link clustering does not find the most intuitive cluster structure in
+this example.
+
+17.2.1 Time complexity of HAC
+
+The complexity of the naive HAC algorithm in Figure 17.2 is \u0398(N3) because
+we exhaustively scan the N × N matrix C for the largest similarity in each of
+N \u2212 1 iterations.
+
+For the four HAC methods discussed in this chapter a more efficient algo-
+rithm is the priority-queue algorithm shown in Figure 17.8. Its time complex-
+ity is \u0398(N2 log N). The rows C[k] of the N× N similarity matrix C are sorted
+in decreasing order of similarity in the priority queues P. P[k].MAX() then
+returns the cluster in P[k] that currently has the highest similarity with \u03c9k,
+where we use \u03c9k to denote the k
+
+th cluster as in Chapter 16. After creating the
+merged cluster of \u03c9k1 and \u03c9k2 , \u03c9k1 is used as its representative. The function
+SIM computes the similarity function for potential merge pairs: largest simi-
+larity for single-link, smallest similarity for complete-link, average similarity
+for GAAC (Section 17.3), and centroid similarity for centroid clustering (Sec-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+386 17 Hierarchical clustering
+
+EFFICIENTHAC(~d1, . . . , ~dN)
+1 for n\u2190 1 to N
+2 do for i \u2190 1 to N
+3 do C[n][i].sim\u2190 ~dn · ~di
+4 C[n][i].index\u2190 i
+5 I[n]\u2190 1
+6 P[n]\u2190 priority queue for C[n] sorted on sim
+7 P[n].DELETE(C[n][n]) (don\u2019t want self-similarities)
+8 A \u2190 []
+9 for k\u2190 1 to N \u2212 1
+
+10 do k1 \u2190 arg max{k:I[k]=1} P[k].MAX().sim
+11 k2 \u2190 P[k1].MAX().index
+12 A.APPEND(\u3008k1, k2\u3009)
+13 I[k2]\u2190 0
+14 P[k1]\u2190 []
+15 for each i with I[i] = 1 \u2227 i 6= k1
+16 do P[i].DELETE(C[i][k1])
+17 P[i].DELETE(C[i][k2])
+18 C[i][k1].sim\u2190 SIM(i, k1, k2)
+19 P[i].INSERT(C[i][k1])
+20 C[k1][i].sim\u2190 SIM(i, k1, k2)
+21 P[k1].INSERT(C[k1][i])
+22 return A
+
+clustering algorithm SIM(i, k1, k2)
+single-link max(SIM(i, k1), SIM(i, k2))
+complete-link min(SIM(i, k1), SIM(i, k2))
+centroid ( 1Nm~vm) · (
+
+1
+Ni
+
+~vi)
+
+group-average 1
+(Nm+Ni)(Nm+Ni\u22121) [(~vm +~vi)
+
+2 \u2212 (Nm + Ni)]
+
+compute C[5]
+1 2 3 4 5
+0.2 0.8 0.6 0.4 1.0
+
+create P[5] (by sorting)
+2 3 4 1
+0.8 0.6 0.4 0.2
+
+merge 2 and 3, update
+similarity of 2, delete 3
+
+2 4 1
+0.3 0.4 0.2
+
+delete and reinsert 2
+4 2 1
+0.4 0.3 0.2
+
+\u25ee Figure 17.8 The priority-queue algorithm for HAC. Top: The algorithm. Center:
+Four different similarity measures. Bottom: An example for processing steps 6 and
+16\u201319. This is a made up example showing P[5] for a 5× 5 matrix C.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.2 Single-link and complete-link clustering 387
+
+SINGLELINKCLUSTERING(d1, . . . , dN)
+1 for n\u2190 1 to N
+2 do for i\u2190 1 to N
+3 do C[n][i].sim\u2190 SIM(dn, di)
+4 C[n][i].index\u2190 i
+5 I[n]\u2190 n
+6 NBM[n]\u2190 arg maxX\u2208{C[n][i]:n 6=i}X.sim
+7 A\u2190 []
+8 for n\u2190 1 to N \u2212 1
+9 do i1 \u2190 arg max{i:I[i]=i}NBM[i].sim
+
+10 i2 \u2190 I[NBM[i1].index]
+11 A.APPEND(\u3008i1, i2\u3009)
+12 for i\u2190 1 to N
+13 do if I[i] = i \u2227 i 6= i1 \u2227 i 6= i2
+14 then C[i1][i].sim\u2190 C[i][i1].sim\u2190 max(C[i1][i].sim, C[i2][i].sim)
+15 if I[i] = i2
+16 then I[i]\u2190 i1
+17 NBM[i1]\u2190 arg maxX\u2208{C[i1][i]:I[i]=i\u2227i 6=i1} X.sim
+18 return A
+
+\u25ee Figure 17.9 Single-link clustering algorithm using an NBM array. After merging
+two clusters i1 and i2, the first one (i1) represents the merged cluster. If I[i] = i, then i
+is the representative of its current cluster. If I[i] 6= i, then i has been merged into the
+cluster represented by I[i] and will therefore be ignored when updating NBM[i1].
+
+tion 17.4). We give an example of how a row of C is processed (Figure 17.8,
+bottom panel). The loop in lines 1\u20137 is \u0398(N2) and the loop in lines 9\u201321 is
+\u0398(N2 log N) for an implementation of priority queues that supports deletion
+and insertion in \u0398(log N). The overall complexity of the algorithm is there-
+fore \u0398(N2 log N). In the definition of the function SIM, ~vm and ~vi are the
+vector sums of \u03c9k1 \u222a\u03c9k2 and \u03c9i, respectively, and Nm and Ni are the number
+of documents in \u03c9k1 \u222a\u03c9k2 and \u03c9i, respectively.
+
+The argument of EFFICIENTHAC in Figure 17.8 is a set of vectors (as op-
+posed to a set of generic documents) because GAAC and centroid clustering
+(Sections 17.3 and 17.4) require vectors as input. The complete-link version
+of EFFICIENTHAC can also be applied to documents that are not represented
+as vectors.
+
+For single-link, we can introduce a next-best-merge array (NBM) as a fur-
+ther optimization as shown in Figure 17.9. NBM keeps track of what the best
+merge is for each cluster. Each of the two top level for-loops in Figure 17.9
+are \u0398(N2), thus the overall complexity of single-link clustering is \u0398(N2).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+388 17 Hierarchical clustering
+
+0 1 2 3 4 5 6 7 8 9 10
+0
+
+1 ×
+
+d1
+×
+
+d2
+×
+
+d3
+×
+
+d4
+
+\u25ee Figure 17.10 Complete-link clustering is not best-merge persistent. At first, d2 is
+the best-merge cluster for d3. But after merging d1 and d2, d4 becomes d3\u2019s best-merge
+candidate. In a best-merge persistent algorithm like single-link, d3\u2019s best-merge clus-
+ter would be {d1, d2}.
+
+Can we also speed up the other three HAC algorithms with an NBM ar-
+ray? We cannot because only single-link clustering is best-merge persistent.BEST-MERGE
+
+PERSISTENCE Suppose that the best merge cluster for \u03c9k is \u03c9j in single-link clustering.
+Then after merging \u03c9j with a third cluster \u03c9i 6= \u03c9k, the merge of \u03c9i and \u03c9j
+will be \u03c9k\u2019s best merge cluster (Exercise 17.6). In other words, the best-merge
+candidate for the merged cluster is one of the two best-merge candidates of
+its components in single-link clustering. This means that C can be updated
+in \u0398(N) in each iteration \u2013 by taking a simple max of two values on line 14
+in Figure 17.9 for each of the remaining \u2264 N clusters.
+
+Figure 17.10 demonstrates that best-merge persistence does not hold for
+complete-link clustering, which means that we cannot use an NBM array to
+speed up clustering. After merging d3\u2019s best merge candidate d2 with cluster
+d1, an unrelated cluster d4 becomes the best merge candidate for d3. This is
+because the complete-link merge criterion is non-local and can be affected by
+points at a great distance from the area where two merge candidates meet.
+
+In practice, the efficiency penalty of the \u0398(N2 log N) algorithm is small
+compared with the \u0398(N2) single-link algorithm since computing the similar-
+ity between two documents (e.g., as a dot product) is an order of magnitude
+slower than comparing two scalars in sorting. All four HAC algorithms in
+this chapter are \u0398(N2) with respect to similarity computations. So the differ-
+ence in complexity is rarely a concern in practice when choosing one of the
+algorithms.
+
+? Exercise 17.1Show that complete-link clustering creates the two-cluster clustering depicted in Fig-
+ure 17.7.
+
+17.3 Group-average agglomerative clustering
+
+Group-average agglomerative clustering or GAAC (see Figure 17.3, (d)) evaluatesGROUP-AVERAGE
+AGGLOMERATIVE
+
+CLUSTERING
+cluster quality based on all similarities between documents, thus avoiding
+the pitfalls of the single-link and complete-link criteria, which equate cluster
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.3 Group-average agglomerative clustering 389
+
+similarity with the similarity of a single pair of documents. GAAC is also
+called group-average clustering and average-link clustering. GAAC computes
+the average similarity SIM-GA of all pairs of documents, including pairs from
+the same cluster. But self-similarities are not included in the average:
+
+SIM-GA(\u03c9i, \u03c9j) =
+1
+
+(Ni + Nj)(Ni + Nj \u2212 1) \u2211dm\u2208\u03c9i\u222a\u03c9j
+\u2211
+
+dn\u2208\u03c9i\u222a\u03c9j,dn 6=dm
+~dm · ~dn(17.1)
+
+where ~d is the length-normalized vector of document d, · denotes the dot
+product, and Ni and Nj are the number of documents in \u03c9i and \u03c9j, respec-
+tively.
+
+The motivation for GAAC is that our goal in selecting two clusters \u03c9i
+and \u03c9j as the next merge in HAC is that the resulting merge cluster \u03c9k =
+\u03c9i \u222a \u03c9j should be coherent. To judge the coherence of \u03c9k, we need to look
+at all document-document similarities within \u03c9k, including those that occur
+within \u03c9i and those that occur within \u03c9j.
+
+We can compute the measure SIM-GA efficiently because the sum of indi-
+vidual vector similarities is equal to the similarities of their sums:
+
+\u2211
+dm\u2208\u03c9i
+
+\u2211
+dn\u2208\u03c9j
+
+(~dm · ~dn) = ( \u2211
+dm\u2208\u03c9i
+
+~dm) · ( \u2211
+dn\u2208\u03c9j
+
+~dn)(17.2)
+
+With (17.2), we have:
+
+SIM-GA(\u03c9i, \u03c9j) =
+1
+
+(Ni + Nj)(Ni + Nj \u2212 1)
+[( \u2211
+
+dm\u2208\u03c9i\u222a\u03c9j
+
+~dm)
+2 \u2212 (Ni + Nj)](17.3)
+
+The term (Ni + Nj) on the right is the sum of Ni + Nj self-similarities of value
+1.0. With this trick we can compute cluster similarity in constant time (as-
+
+suming we have available the two vector sums \u2211dm\u2208\u03c9i
+~dm and \u2211dm\u2208\u03c9j
+
+~dm)
+
+instead of in \u0398(NiNj). This is important because we need to be able to com-
+pute the function SIM on lines 18 and 20 in EFFICIENTHAC (Figure 17.8)
+in constant time for efficient implementations of GAAC. Note that for two
+singleton clusters, Equation (17.3) is equivalent to the dot product.
+
+Equation (17.2) relies on the distributivity of the dot product with respect
+to vector addition. Since this is crucial for the efficient computation of a
+GAAC clustering, the method cannot be easily applied to representations of
+documents that are not real-valued vectors. Also, Equation (17.2) only holds
+for the dot product. While many algorithms introduced in this book have
+near-equivalent descriptions in terms of dot product, cosine similarity and
+Euclidean distance (cf. Section 14.1, page 291), Equation (17.2) can only be
+expressed using the dot product. This is a fundamental difference between
+single-link/complete-link clustering and GAAC. The first two only require a
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+390 17 Hierarchical clustering
+
+square matrix of similarities as input and do not care how these similarities
+were computed.
+
+To summarize, GAAC requires (i) documents represented as vectors, (ii)
+length normalization of vectors, so that self-similarities are 1.0, and (iii) the
+dot product as the measure of similarity between vectors and sums of vec-
+tors.
+
+The merge algorithms for GAAC and complete-link clustering are the same
+except that we use Equation (17.3) as similarity function in Figure 17.8. There-
+fore, the overall time complexity of GAAC is the same as for complete-link
+clustering: \u0398(N2 log N). Like complete-link clustering, GAAC is not best-
+merge persistent (Exercise 17.6). This means that there is no \u0398(N2) algorithm
+for GAAC that would be analogous to the \u0398(N2) algorithm for single-link in
+Figure 17.9.
+
+We can also define group-average similarity as including self-similarities:
+
+SIM-GA\u2032(\u03c9i, \u03c9j) =
+1
+
+(Ni+Nj)2
+( \u2211
+
+dm\u2208\u03c9i\u222a\u03c9j
+
+~dm)
+2 =
+
+1
+
+Ni+Nj
+\u2211
+
+dm\u2208\u03c9i\u222a\u03c9j
+[~dm ·~µ(\u03c9i\u222a\u03c9j)](17.4)
+
+where the centroid ~µ(\u03c9) is defined as in Equation (14.1) (page 292). This
+definition is equivalent to the intuitive definition of cluster quality as average
+
+similarity of documents ~dm to the cluster\u2019s centroid ~µ.
+Self-similarities are always equal to 1.0, the maximum possible value for
+
+length-normalized vectors. The proportion of self-similarities in Equation (17.4)
+is i/i2 = 1/i for a cluster of size i. This gives an unfair advantage to small
+clusters since they will have proportionally more self-similarities. For two
+documents d1, d2 with a similarity s, we have SIM-GA
+
+\u2032(d1, d2) = (1 + s)/2.
+In contrast, SIM-GA(d1, d2) = s \u2264 (1 + s)/2. This similarity SIM-GA(d1, d2)
+of two documents is the same as in single-link, complete-link and centroid
+clustering. We prefer the definition in Equation (17.3), which excludes self-
+similarities from the average, because we do not want to penalize large clus-
+ters for their smaller proportion of self-similarities and because we want a
+consistent similarity value s for document pairs in all four HAC algorithms.
+
+? Exercise 17.2
+Apply group-average clustering to the points in Figures 17.6 and 17.7. Map them onto
+the surface of the unit sphere in a three-dimensional space to get length-normalized
+vectors. Is the group-average clustering different from the single-link and complete-
+link clusterings?
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.4 Centroid clustering 391
+
+0 1 2 3 4 5 6 7
+0
+
+1
+
+2
+
+3
+
+4
+
+5 × d1
+
+× d2
+
+× d3
+
+× d4
+
+×d5 × d6bc
+µ1
+
+bc
+µ3
+
+bc µ2
+
+\u25ee Figure 17.11 Three iterations of centroid clustering. Each iteration merges the
+two clusters whose centroids are closest.
+
+17.4 Centroid clustering
+
+In centroid clustering, the similarity of two clusters is defined as the similar-
+ity of their centroids:
+
+SIM-CENT(\u03c9i, \u03c9j) = ~µ(\u03c9i) ·~µ(\u03c9j)(17.5)
+
+= (
+1
+
+Ni
+\u2211
+
+dm\u2208\u03c9i
+
+~dm) · (
+1
+
+Nj
+\u2211
+
+dn\u2208\u03c9j
+
+~dn)
+
+=
+1
+
+NiNj
+\u2211
+
+dm\u2208\u03c9i
+\u2211
+
+dn\u2208\u03c9j
+
+~dm · ~dn(17.6)
+
+Equation (17.5) is centroid similarity. Equation (17.6) shows that centroid
+similarity is equivalent to average similarity of all pairs of documents from
+different clusters. Thus, the difference between GAAC and centroid clustering
+is that GAAC considers all pairs of documents in computing average pair-
+wise similarity (Figure 17.3, (d)) whereas centroid clustering excludes pairs
+from the same cluster (Figure 17.3, (c)).
+
+Figure 17.11 shows the first three steps of a centroid clustering. The first
+two iterations form the clusters {d5, d6} with centroid µ1 and {d1, d2} with
+centroid µ2 because the pairs \u3008d5, d6\u3009 and \u3008d1, d2\u3009 have the highest centroid
+similarities. In the third iteration, the highest centroid similarity is between
+µ1 and d4 producing the cluster {d4, d5, d6} with centroid µ3.
+
+Like GAAC, centroid clustering is not best-merge persistent and therefore
+\u0398(N2 log N) (Exercise 17.6).
+
+In contrast to the other three HAC algorithms, centroid clustering is not
+monotonic. So-called inversions can occur: Similarity can increase duringINVERSION
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+392 17 Hierarchical clustering
+
+0 1 2 3 4 5
+0
+
+1
+
+2
+
+3
+
+4
+
+5
+
+× ×
+
+×
+
+bc
+
+d1 d2
+
+d3
+\u22124
+\u22123
+\u22122
+\u22121
+
+0
+d1 d2 d3
+
+\u25ee Figure 17.12 Centroid clustering is not monotonic. The documents d1 at (1 + \u01eb, 1),
+
+d2 at (5, 1), and d3 at (3, 1 + 2
+\u221a
+
+3) are almost equidistant, with d1 and d2 closer to
+each other than to d3. The non-monotonic inversion in the hierarchical clustering
+of the three points appears as an intersecting merge line in the dendrogram. The
+intersection is circled.
+
+clustering as in the example in Figure 17.12, where we define similarity as
+negative distance. In the first merge, the similarity of d1 and d2 is\u2212(4\u2212 \u01eb). In
+the second merge, the similarity of the centroid of d1 and d2 (the circle) and d3
+is \u2248 \u2212 cos(\u03c0/6)× 4 = \u2212
+
+\u221a
+3/2× 4 \u2248 \u22123.46 > \u2212(4\u2212 \u01eb). This is an example
+
+of an inversion: similarity increases in this sequence of two clustering steps.
+In a monotonic HAC algorithm, similarity is monotonically decreasing from
+iteration to iteration.
+
+Increasing similarity in a series of HAC clustering steps contradicts the
+fundamental assumption that small clusters are more coherent than large
+clusters. An inversion in a dendrogram shows up as a horizontal merge line
+that is lower than the previous merge line. All merge lines in Figures 17.1
+and 17.5 are higher than their predecessors because single-link and complete-
+link clustering are monotonic clustering algorithms.
+
+Despite its non-monotonicity, centroid clustering is often used because its
+similarity measure \u2013 the similarity of two centroids \u2013 is conceptually simpler
+than the average of all pairwise similarities in GAAC. Figure 17.11 is all one
+needs to understand centroid clustering. There is no equally simple graph
+that would explain how GAAC works.
+
+? Exercise 17.3
+For a fixed set of N documents there are up to N2 distinct similarities between clusters
+in single-link and complete-link clustering. How many distinct cluster similarities are
+there in GAAC and centroid clustering?
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.5 Optimality of HAC 393
+
+\u2704 17.5 Optimality of HAC
+To state the optimality conditions of hierarchical clustering precisely, we first
+define the combination similarity COMB-SIM of a clustering \u2126 = {\u03c91, . . . , \u03c9K}
+as the smallest combination similarity of any of its K clusters:
+
+COMB-SIM({\u03c91, . . . , \u03c9K}) = min
+k
+
+COMB-SIM(\u03c9k)
+
+Recall that the combination similarity of a cluster \u03c9 that was created as the
+merge of \u03c91 and \u03c92 is the similarity of \u03c91 and \u03c92 (page 378).
+
+We then define \u2126 = {\u03c91, . . . , \u03c9K} to be optimal if all clusterings \u2126\u2032 with kOPTIMAL CLUSTERING
+clusters, k \u2264 K, have lower combination similarities:
+
+|\u2126\u2032| \u2264 |\u2126| \u21d2 COMB-SIM(\u2126\u2032) \u2264 COMB-SIM(\u2126)
+
+Figure 17.12 shows that centroid clustering is not optimal. The cluster-
+ing {{d1, d2}, {d3}} (for K = 2) has combination similarity \u2212(4 \u2212 \u01eb) and
+{{d1, d2, d3}} (for K = 1) has combination similarity -3.46. So the cluster-
+ing {{d1, d2}, {d3}} produced in the first merge is not optimal since there is
+a clustering with fewer clusters ({{d1, d2, d3}}) that has higher combination
+similarity. Centroid clustering is not optimal because inversions can occur.
+
+The above definition of optimality would be of limited use if it was only
+applicable to a clustering together with its merge history. However, we can
+show (Exercise 17.4) that combination similarity for the three non-inversionCOMBINATION
+
+SIMILARITY algorithms can be read off from the cluster without knowing its history. These
+direct definitions of combination similarity are as follows.
+
+single-link The combination similarity of a cluster \u03c9 is the smallest similar-
+ity of any bipartition of the cluster, where the similarity of a bipartition is
+the largest similarity between any two documents from the two parts:
+
+COMB-SIM(\u03c9) = min
+{\u03c9\u2032:\u03c9\u2032\u2282\u03c9}
+
+max
+di\u2208\u03c9\u2032
+
+max
+d j\u2208\u03c9\u2212\u03c9\u2032
+
+SIM(di, dj)
+
+where each \u3008\u03c9\u2032, \u03c9\u2212 \u03c9\u2032\u3009 is a bipartition of \u03c9.
+complete-link The combination similarity of a cluster \u03c9 is the smallest sim-
+
+ilarity of any two points in \u03c9: mindi\u2208\u03c9 mind j\u2208\u03c9 SIM(di, dj).
+
+GAAC The combination similarity of a cluster \u03c9 is the average of all pair-
+wise similarities in \u03c9 (where self-similarities are not included in the aver-
+age): Equation (17.3).
+
+If we use these definitions of combination similarity, then optimality is a
+property of a set of clusters and not of a process that produces a set of clus-
+ters.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+394 17 Hierarchical clustering
+
+We can now prove the optimality of single-link clustering by induction
+over the number of clusters K. We will give a proof for the case where no two
+pairs of documents have the same similarity, but it can easily be extended to
+the case with ties.
+
+The inductive basis of the proof is that a clustering with K = N clusters has
+combination similarity 1.0, which is the largest value possible. The induc-
+tion hypothesis is that a single-link clustering \u2126K with K clusters is optimal:
+COMB-SIM(\u2126K) \u2265 COMB-SIM(\u2126\u2032K) for all \u2126\u2032K. Assume for contradiction that
+the clustering \u2126K\u22121 we obtain by merging the two most similar clusters in
+\u2126K is not optimal and that instead a different sequence of merges \u2126
+
+\u2032
+K, \u2126
+
+\u2032
+K\u22121
+
+leads to the optimal clustering with K \u2212 1 clusters. We can write the as-
+sumption that \u2126\u2032K\u22121 is optimal and that \u2126K\u22121 is not as COMB-SIM(\u2126
+
+\u2032
+K\u22121) >
+
+COMB-SIM(\u2126K\u22121).
+Case 1: The two documents linked by s = COMB-SIM(\u2126\u2032K\u22121) are in the
+
+same cluster in \u2126K. They can only be in the same cluster if a merge with sim-
+ilarity smaller than s has occurred in the merge sequence producing \u2126K. This
+implies s > COMB-SIM(\u2126K). Thus, COMB-SIM(\u2126
+
+\u2032
+K\u22121) = s > COMB-SIM(\u2126K) >
+
+COMB-SIM(\u2126\u2032K) > COMB-SIM(\u2126
+\u2032
+K\u22121). Contradiction.
+
+Case 2: The two documents linked by s = COMB-SIM(\u2126\u2032K\u22121) are not in
+the same cluster in \u2126K. But s = COMB-SIM(\u2126
+
+\u2032
+K\u22121) > COMB-SIM(\u2126K\u22121), so
+
+the single-link merging rule should have merged these two clusters when
+processing \u2126K. Contradiction.
+
+Thus, \u2126K\u22121 is optimal.
+In contrast to single-link clustering, complete-link clustering and GAAC
+
+are not optimal as this example shows:
+
+× × × ×13 3
+d1 d2 d3 d4
+
+Both algorithms merge the two points with distance 1 (d2 and d3) first and
+thus cannot find the two-cluster clustering {{d1, d2}, {d3, d4}}. But {{d1, d2}, {d3, d4}}
+is optimal on the optimality criteria of complete-link clustering and GAAC.
+
+However, the merge criteria of complete-link clustering and GAAC ap-
+proximate the desideratum of approximate sphericity better than the merge
+criterion of single-link clustering. In many applications, we want spheri-
+cal clusters. Thus, even though single-link clustering may seem preferable at
+first because of its optimality, it is optimal with respect to the wrong criterion
+in many document clustering applications.
+
+Table 17.1 summarizes the properties of the four HAC algorithms intro-
+duced in this chapter. We recommend GAAC for document clustering be-
+cause it is generally the method that produces the clustering with the best
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.6 Divisive clustering 395
+
+method combination similarity time compl. optimal? comment
+
+single-link max inter-similarity of any 2 docs \u0398(N2) yes chaining effect
+
+complete-link min inter-similarity of any 2 docs \u0398(N2 log N) no sensitive to outliers
+
+group-average average of all sims \u0398(N2 log N) no
+best choice for
+most applications
+
+centroid average inter-similarity \u0398(N2 log N) no inversions can occur
+
+\u25ee Table 17.1 Comparison of HAC algorithms.
+
+properties for applications. It does not suffer from chaining, from sensitivity
+to outliers and from inversions.
+
+There are two exceptions to this recommendation. First, for non-vector
+representations, GAAC is not applicable and clustering should typically be
+performed with the complete-link method.
+
+Second, in some applications the purpose of clustering is not to create a
+complete hierarchy or exhaustive partition of the entire document set. For
+instance, first story detection or novelty detection is the task of detecting the firstFIRST STORY
+
+DETECTION occurrence of an event in a stream of news stories. One approach to this task
+is to find a tight cluster within the documents that were sent across the wire
+in a short period of time and are dissimilar from all previous documents. For
+example, the documents sent over the wire in the minutes after the World
+Trade Center attack on September 11, 2001 form such a cluster. Variations of
+single-link clustering can do well on this task since it is the structure of small
+parts of the vector space \u2013 and not global structure \u2013 that is important in this
+case.
+
+Similarly, we will describe an approach to duplicate detection on the web
+in Section 19.6 (page 440) where single-link clustering is used in the guise of
+the union-find algorithm. Again, the decision whether a group of documents
+are duplicates of each other is not influenced by documents that are located
+far away and single-link clustering is a good choice for duplicate detection.
+
+? Exercise 17.4Show the equivalence of the two definitions of combination similarity: the process
+definition on page 378 and the static definition on page 393.
+
+17.6 Divisive clustering
+
+So far we have only looked at agglomerative clustering, but a cluster hierar-
+chy can also be generated top-down. This variant of hierarchical clustering
+is called top-down clustering or divisive clustering. We start at the top with allTOP-DOWN
+
+CLUSTERING documents in one cluster. The cluster is split using a flat clustering algo-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+396 17 Hierarchical clustering
+
+rithm. This procedure is applied recursively until each document is in its
+own singleton cluster.
+
+Top-down clustering is conceptually more complex than bottom-up clus-
+tering since we need a second, flat clustering algorithm as a \u201csubroutine\u201d. It
+has the advantage of being more efficient if we do not generate a complete
+hierarchy all the way down to individual document leaves. For a fixed num-
+ber of top levels, using an efficient flat algorithm like K-means, top-down
+algorithms are linear in the number of documents and clusters. So they run
+much faster than HAC algorithms, which are at least quadratic.
+
+There is evidence that divisive algorithms produce more accurate hierar-
+chies than bottom-up algorithms in some circumstances. See the references
+on bisecting K-means in Section 17.9. Bottom-up methods make cluster-
+ing decisions based on local patterns without initially taking into account
+the global distribution. These early decisions cannot be undone. Top-down
+clustering benefits from complete information about the global distribution
+when making top-level partitioning decisions.
+
+17.7 Cluster labeling
+
+In many applications of flat clustering and hierarchical clustering, particu-
+larly in analysis tasks and in user interfaces (see applications in Table 16.1,
+page 351), human users interact with clusters. In such settings, we must label
+clusters, so that users can see what a cluster is about.
+
+Differential cluster labeling selects cluster labels by comparing the distribu-DIFFERENTIAL CLUSTER
+LABELING tion of terms in one cluster with that of other clusters. The feature selection
+
+methods we introduced in Section 13.5 (page 271) can all be used for differen-
+tial cluster labeling.5 In particular, mutual information (MI) (Section 13.5.1,
+page 272) or, equivalently, information gain and the \u03c72-test (Section 13.5.2,
+page 275) will identify cluster labels that characterize one cluster in contrast
+to other clusters. A combination of a differential test with a penalty for rare
+terms often gives the best labeling results because rare terms are not neces-
+sarily representative of the cluster as a whole.
+
+We apply three labeling methods to a K-means clustering in Table 17.2. In
+this example, there is almost no difference between MI and \u03c72. We therefore
+omit the latter.
+
+Cluster-internal labeling computes a label that solely depends on the clusterCLUSTER-INTERNAL
+LABELING itself, not on other clusters. Labeling a cluster with the title of the document
+
+closest to the centroid is one cluster-internal method. Titles are easier to read
+than a list of terms. A full title can also contain important context that didn\u2019t
+make it into the top 10 terms selected by MI. On the web, anchor text can
+
+5. Selecting the most frequent terms is a non-differential feature selection technique we dis-
+cussed in Section 13.5. It can also be used for labeling clusters.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.7 Cluster labeling 397
+
+labeling method
+# docs centroid mutual information title
+
+4 622
+oil plant mexico pro-
+duction crude power
+000 refinery gas bpd
+
+plant oil production
+barrels crude bpd
+mexico dolly capacity
+petroleum
+
+MEXICO: Hurri-
+cane Dolly heads for
+Mexico coast
+
+9 1017
+
+police security russian
+people military peace
+killed told grozny
+court
+
+police killed military
+security peace told
+troops forces rebels
+people
+
+RUSSIA: Russia\u2019s
+Lebed meets rebel
+chief in Chechnya
+
+10 1259
+
+00 000 tonnes traders
+futures wheat prices
+cents september
+tonne
+
+delivery traders
+futures tonne tonnes
+desk wheat prices 000
+00
+
+USA: Export Business
+- Grain/oilseeds com-
+plex
+
+\u25ee Table 17.2 Automatically computed cluster labels. This is for three of ten clusters
+(4, 9, and 10) in a K-means clustering of the first 10,000 documents in Reuters-RCV1.
+The last three columns show cluster summaries computed by three labeling methods:
+most highly weighted terms in centroid (centroid), mutual information, and the title
+of the document closest to the centroid of the cluster (title). Terms selected by only
+one of the first two methods are in bold.
+
+play a role similar to a title since the anchor text pointing to a page can serve
+as a concise summary of its contents.
+
+In Table 17.2, the title for cluster 9 suggests that many of its documents are
+about the Chechnya conflict, a fact the MI terms do not reveal. However, a
+single document is unlikely to be representative of all documents in a cluster.
+An example is cluster 4, whose selected title is misleading. The main topic of
+the cluster is oil. Articles about hurricane Dolly only ended up in this cluster
+because of its effect on oil prices.
+
+We can also use a list of terms with high weights in the centroid of the clus-
+ter as a label. Such highly weighted terms (or, even better, phrases, especially
+noun phrases) are often more representative of the cluster than a few titles
+can be, even if they are not filtered for distinctiveness as in the differential
+methods. However, a list of phrases takes more time to digest for users than
+a well crafted title.
+
+Cluster-internal methods are efficient, but they fail to distinguish terms
+that are frequent in the collection as a whole from those that are frequent only
+in the cluster. Terms like year or Tuesday may be among the most frequent in
+a cluster, but they are not helpful in understanding the contents of a cluster
+with a specific topic like oil.
+
+In Table 17.2, the centroid method selects a few more uninformative terms
+(000, court, cents, september) than MI (forces, desk), but most of the terms se-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+398 17 Hierarchical clustering
+
+lected by either method are good descriptors. We get a good sense of the
+documents in a cluster from scanning the selected terms.
+
+For hierarchical clustering, additional complications arise in cluster label-
+ing. Not only do we need to distinguish an internal node in the tree from
+its siblings, but also from its parent and its children. Documents in child
+nodes are by definition also members of their parent node, so we cannot use
+a naive differential method to find labels that distinguish the parent from
+its children. However, more complex criteria, based on a combination of
+overall collection frequency and prevalence in a given cluster, can determine
+whether a term is a more informative label for a child node or a parent node
+(see Section 17.9).
+
+17.8 Implementation notes
+
+Most problems that require the computation of a large number of dot prod-
+ucts benefit from an inverted index. This is also the case for HAC clustering.
+Computational savings due to the inverted index are large if there are many
+zero similarities \u2013 either because many documents do not share any terms or
+because an aggressive stop list is used.
+
+In low dimensions, more aggressive optimizations are possible that make
+the computation of most pairwise similarities unnecessary (Exercise 17.10).
+However, no such algorithms are known in higher dimensions. We encoun-
+tered the same problem in kNN classification (see Section 14.7, page 314).
+
+When using GAAC on a large document set in high dimensions, we have
+to take care to avoid dense centroids. For dense centroids, clustering can
+take time \u0398(MN2 log N) where M is the size of the vocabulary, whereas
+complete-link clustering is \u0398(MaveN2 log N) where Mave is the average size
+of the vocabulary of a document. So for large vocabularies complete-link
+clustering can be more efficient than an unoptimized implementation of GAAC.
+We discussed this problem in the context of K-means clustering in Chap-
+ter 16 (page 365) and suggested two solutions: truncating centroids (keeping
+only highly weighted terms) and representing clusters by means of sparse
+medoids instead of dense centroids. These optimizations can also be applied
+to GAAC and centroid clustering.
+
+Even with these optimizations, HAC algorithms are all \u0398(N2) or \u0398(N2 log N)
+and therefore infeasible for large sets of 1,000,000 or more documents. For
+such large sets, HAC can only be used in combination with a flat clustering
+algorithm like K-means. Recall that K-means requires a set of seeds as initial-
+ization (Figure 16.5, page 361). If these seeds are badly chosen, then the re-
+sulting clustering will be of poor quality. We can employ an HAC algorithm
+to compute seeds of high quality. If the HAC algorithm is applied to a docu-
+
+ment subset of size
+\u221a
+
+N, then the overall runtime of K-means cum HAC seed
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.9 References and further reading 399
+
+generation is \u0398(N). This is because the application of a quadratic algorithm
+
+to a sample of size
+\u221a
+
+N has an overall complexity of \u0398(N). An appropriate
+adjustment can be made for an \u0398(N2 log N) algorithm to guarantee linear-
+ity. This algorithm is referred to as the Buckshot algorithm. It combines theBUCKSHOT
+
+ALGORITHM determinism and higher reliability of HAC with the efficiency of K-means.
+
+17.9 References and further reading
+
+An excellent general review of clustering is (Jain et al. 1999). Early references
+for specific HAC algorithms are (King 1967) (single-link), (Sneath and Sokal
+1973) (complete-link, GAAC) and (Lance and Williams 1967) (discussing a
+large variety of hierarchical clustering algorithms). The single-link algorithm
+in Figure 17.9 is similar to Kruskal\u2019s algorithm for constructing a minimumKRUSKAL\u2019S
+
+ALGORITHM spanning tree. A graph-theoretical proof of the correctness of Kruskal\u2019s al-
+gorithm (which is analogous to the proof in Section 17.5) is provided by Cor-
+men et al. (1990, Theorem 23.1). See Exercise 17.5 for the connection between
+minimum spanning trees and single-link clusterings.
+
+It is often claimed that hierarchical clustering algorithms produce better
+clusterings than flat algorithms (Jain and Dubes (1988, p. 140), Cutting et al.
+(1992), Larsen and Aone (1999)) although more recently there have been ex-
+perimental results suggesting the opposite (Zhao and Karypis 2002). Even
+without a consensus on average behavior, there is no doubt that results of
+EM and K-means are highly variable since they will often converge to a local
+optimum of poor quality. The HAC algorithms we have presented here are
+deterministic and thus more predictable.
+
+The complexity of complete-link, group-average and centroid clustering
+is sometimes given as \u0398(N2) (Day and Edelsbrunner 1984, Voorhees 1985b,
+Murtagh 1983) because a document similarity computation is an order of
+magnitude more expensive than a simple comparison, the main operation
+executed in the merging steps after the N × N similarity matrix has been
+computed.
+
+The centroid algorithm described here is due to Voorhees (1985b). Voorhees
+recommends complete-link and centroid clustering over single-link for a re-
+trieval application. The Buckshot algorithm was originally published by Cut-
+ting et al. (1993). Allan et al. (1998) apply single-link clustering to first story
+detection.
+
+An important HAC technique not discussed here is Ward\u2019s method (WardWARD\u2019S METHOD
+Jr. 1963, El-Hamdouchi and Willett 1986), also called minimum variance clus-
+tering. In each step, it selects the merge with the smallest RSS (Chapter 16,
+page 360). The merge criterion in Ward\u2019s method (a function of all individual
+distances from the centroid) is closely related to the merge criterion in GAAC
+(a function of all individual similarities to the centroid).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+400 17 Hierarchical clustering
+
+Despite its importance for making the results of clustering useful, compar-
+atively little work has been done on labeling clusters. Popescul and Ungar
+(2000) obtain good results with a combination of \u03c72 and collection frequency
+of a term. Glover et al. (2002b) use information gain for labeling clusters of
+web pages. Stein and zu Eissen\u2019s approach is ontology-based (2004). The
+more complex problem of labeling nodes in a hierarchy (which requires dis-
+tinguishing more general labels for parents from more specific labels for chil-
+dren) is tackled by Glover et al. (2002a) and Treeratpituk and Callan (2006).
+Some clustering algorithms attempt to find a set of labels first and then build
+(often overlapping) clusters around the labels, thereby avoiding the problem
+of labeling altogether (Zamir and Etzioni 1999, Käki 2005, Osin\u0301ski and Weiss
+2005). We know of no comprehensive study that compares the quality of
+such \u201clabel-based\u201d clustering to the clustering algorithms discussed in this
+chapter and in Chapter 16. In principle, work on multi-document summa-
+rization (McKeown and Radev 1995) is also applicable to cluster labeling, but
+multi-document summaries are usually longer than the short text fragments
+needed when labeling clusters (cf. Section 8.7, page 170). Presenting clusters
+in a way that users can understand is a UI problem. We recommend read-
+ing (Baeza-Yates and Ribeiro-Neto 1999, ch. 10) for an introduction to user
+interfaces in IR.
+
+An example of an efficient divisive algorithm is bisecting K-means (Stein-
+bach et al. 2000). Spectral clustering algorithms (Kannan et al. 2000, DhillonSPECTRAL CLUSTERING
+2001, Zha et al. 2001, Ng et al. 2001a), including principal direction divisive
+partitioning (PDDP) (whose bisecting decisions are based on SVD, see Chap-
+ter 18) (Boley 1998, Savaresi and Boley 2004), are computationally more ex-
+pensive than bisecting K-means, but have the advantage of being determin-
+istic.
+
+Unlike K-means and EM, most hierarchical clustering algorithms do not
+have a probabilistic interpretation. Model-based hierarchical clustering (Vaithyanathan
+and Dom 2000, Kamvar et al. 2002, Castro et al. 2004) is an exception.
+
+The evaluation methodology described in Section 16.3 (page 356) is also
+applicable to hierarchical clustering. Specialized evaluation measures for hi-
+erarchies are discussed by Fowlkes and Mallows (1983), Larsen and Aone
+(1999) and Sahoo et al. (2006).
+
+The R environment (R Development Core Team 2005) offers good support
+for hierarchical clustering. The R function hclust implements single-link,
+complete-link, group-average, and centroid clustering; and Ward\u2019s method.
+Another option provided is median clustering which represents each cluster
+by its medoid (cf. k-medoids in Chapter 16, page 365). Support for cluster-
+ing vectors in high-dimensional spaces is provided by the software package
+CLUTO (http://glaros.dtc.umn.edu/gkhome/views/cluto).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+17.10 Exercises 401
+
+17.10 Exercises
+
+? Exercise 17.5A single-link clustering can also be computed from the minimum spanning tree of aMINIMUM SPANNING
+TREE graph. The minimum spanning tree connects the vertices of a graph at the smallest
+
+possible cost, where cost is defined as the sum over all edges of the graph. In our
+case the cost of an edge is the distance between two documents. Show that if \u2206k\u22121 >
+\u2206k > . . . > \u22061 are the costs of the edges of a minimum spanning tree, then these
+edges correspond to the k\u2212 1 merges in constructing a single-link clustering.
+
+Exercise 17.6
+
+Show that single-link clustering is best-merge persistent and that GAAC and centroid
+clustering are not best-merge persistent.
+
+Exercise 17.7
+
+a. Consider running 2-means clustering on a collection with documents from two
+different languages. What result would you expect?
+
+b. Would you expect the same result when running an HAC algorithm?
+
+Exercise 17.8
+
+Download Reuters-21578. Keep only documents that are in the classes crude, inter-
+est, and grain. Discard documents that are members of more than one of these three
+classes. Compute a (i) single-link, (ii) complete-link, (iii) GAAC, (iv) centroid cluster-
+ing of the documents. (v) Cut each dendrogram at the second branch from the top to
+obtain K = 3 clusters. Compute the Rand index for each of the 4 clusterings. Which
+clustering method performs best?
+
+Exercise 17.9
+
+Suppose a run of HAC finds the clustering with K = 7 to have the highest value on
+some prechosen goodness measure of clustering. Have we found the highest-value
+clustering among all clusterings with K = 7?
+
+Exercise 17.10
+
+Consider the task of producing a single-link clustering of N points on a line:
+
+× × × × × × × × × ×
+
+Show that we only need to compute a total of about N similarities. What is the overall
+complexity of single-link clustering for a set of points on a line?
+
+Exercise 17.11
+
+Prove that single-link, complete-link, and group-average clustering are monotonic in
+the sense defined on page 378.
+
+Exercise 17.12
+
+For N points, there are \u2264 NK different flat clusterings into K clusters (Section 16.2,
+page 356). What is the number of different hierarchical clusterings (or dendrograms)
+of N documents? Are there more flat clusterings or more hierarchical clusterings for
+given K and N?
+
+
+	Hierarchical clustering
+	Hierarchical agglomerative clustering
+	Single-link and complete-link clustering
+	Time complexity of HAC
+
+	Group-average agglomerative clustering
+	Centroid clustering
+	Optimality of HAC
+	Divisive clustering
+	Cluster labeling
+	Implementation notes
+	References and further reading
+	Exercises
+
+

@@ -96,10 +96,7 @@ class KLSummarizer(AbstractSummarizer):
         sum_val = 0
         for w in summary_freq:
             frequency = doc_freq.get(w)
-            #print(type(frequency))
             if frequency:  # missing or zero = no frequency
-                #print(frequency)
-                #print(frequency / summary_freq[w])
                 sum_val += frequency * math.log(frequency / summary_freq[w])
 
         return sum_val
@@ -133,7 +130,6 @@ class KLSummarizer(AbstractSummarizer):
                 # calculates the joint frequency through combining the word lists
                 joint_freq = self._joint_freq(s, summary_as_word_list)
 
-                #print(word_freq)
                 # adds the calculated kl divergence to the list in index = sentence used
                 kls.append(self._kl_divergence(joint_freq, word_freq))
 

@@ -6,6 +6,7 @@ from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 
 import math
+import operator
 
 from _summarizer import AbstractSummarizer
 from LanguageModel import LanguageModel
@@ -21,13 +22,13 @@ class KLSum(AbstractSummarizer):
     stop_words = frozenset()
 
     def __call__(self, document, sentences_count):
-        ratings = self._get_ratings(document)
-        return self._get_best_sentences(document.sentences, sentences_count, ratings)
+        ratings, selectedSentences = self._get_ratings(document)
+        return self._get_best_sentences(sent, sentences_count, ratings)
 
     def _get_ratings(self, document):
         sentences = document.sentences
-        ratings = self._compute_ratings(sentences)
-        return ratings
+        ratings, selectedSentences = self._compute_ratings(sentences)
+        return ratings, selectedSentences
 
     def _get_all_words_in_doc(self, sentences):
         return [w for s in sentences for w in s.words]
@@ -64,7 +65,7 @@ class KLSum(AbstractSummarizer):
         content_words = self._get_all_content_words_in_doc(sentences)
         content_words_count = len(content_words)
         content_words_freq = self._compute_word_freq(content_words)
-        content_word_tf = dict((w, f / content_words_count) for w, f in content_words_freq.items())
+        content_word_tf = dict((w, f / content_words_count) for w, f in content_words_freq.items()) #2
         return content_word_tf, content_words_count, content_words_freq
 
     def _joint_freq(self, word_list_1, word_list_2):
@@ -91,7 +92,7 @@ class KLSum(AbstractSummarizer):
 
         return joint
 
-    def _kl_divergence(self, summary_freq, doc_freq, weight):
+    def _kl_divergence(self, summary_freq, doc_freq):
         """
         Note: Could import scipy.stats and use scipy.stats.entropy(doc_freq, summary_freq)
         but this gives equivalent value without the import
@@ -99,13 +100,9 @@ class KLSum(AbstractSummarizer):
         sum_val = 0
         for w in summary_freq:
             frequency = doc_freq.get(w)
-            # print(type(frequency))
             if frequency:  # missing or zero = no frequency
-                # print(frequency)
-                # print(frequency / summary_freq[w])
                 sum_val += frequency * math.log(frequency / summary_freq[w])
 
-        sum_val = weight * sum_val
         return sum_val
 
     def _find_index_of_best_sentence(self, kls):
@@ -114,29 +111,22 @@ class KLSum(AbstractSummarizer):
         """
         return kls.index(min(kls))
 
-    def computeSentenceWeight(self, sentence, wordTF, wordFreqDoc, wordFreqCorpus, docLength, corpusLength):
+    def computeSentenceWeight(self, sentence, wordTF, wordFreqCorpus, docLength):
         LANGUAGE = "english"
         sentProbCorpus = 0
         sentProbDoc = 0
         sentProb = 0
         counter = 0
-        #parsed = PlaintextParser(sentence, Tokenizer(LANGUAGE))
-        #sentence = parsed.document.sentences
-        #words = self._get_all_content_words_in_doc(sentence)
+
         for word in sentence:
             counter += 1
             word = word.lower()
-            if not word in wordFreqDoc:
-                wordFreqDoc[word] = 0
             if not word in wordFreqCorpus:
                 wordFreqCorpus[word] = 0
             if not word in wordTF:
                 wordTF[word] = 0
-            #print(word, wordTF.get(word), wordFreqDoc.get(word), wordFreqCorpus.get(word), docLength)
-            sentProbDoc += math.log((wordTF.get(word) + 500 * wordFreqDoc.get(word))/(docLength + 500))
-            sentProbCorpus += math.log((wordTF.get(word) + 5000 * wordFreqCorpus.get(word))/(docLength + 5000))
-            #print(sentProbDoc, sentProbCorpus)
-
+            sentProbDoc += math.log((wordTF.get(word) + 5000 * wordFreqCorpus.get(word))/(docLength + 5000))
+            sentProbCorpus += math.log(wordFreqCorpus.get(word))
 
         if counter > 0:
             sentProbDoc /= counter
@@ -149,7 +139,7 @@ class KLSum(AbstractSummarizer):
         ratings = {}
         summary = []
         lm = LanguageModel()
-        wordFreqCorpus, corpusLength = lm()
+        wordFreqCorpus = lm()
 
         # make it a list so that it can be modified
         sentences_list = list(sentences)
@@ -157,8 +147,28 @@ class KLSum(AbstractSummarizer):
         # get all content words once for efficiency
         sentences_as_words = [self._get_content_words_in_sentence(s) for s in sentences]
 
+        listOfSentWeightTuples = []
+        for words, sent in zip(sentences_as_words, sentences):
+            weight = self.computeSentenceWeight(words, wordTF, wordFreqCorpus, docLength)
+            sentPlusWeight = (sent, weight)
+            listOfSentWeightTuples.append(sentPlusWeight)
+
+        listOfSentWeightTuples.sort(key=operator.itemgetter(1), reverse=True)
+        del listOfSentWeightTuples[80:]
+
+        sent_list = [sent[0] for sent in listOfSentWeightTuples]
+
+        sentencesInOrder = []
+        for s in sentences:
+            for sent in listOfSentWeightTuples:
+                if s == sent[0]:
+                    sentencesInOrder.append(sent[0])
+
+
+        sent_as_words = [self._get_content_words_in_sentence(s) for s in sent_list]
+
         # Removes one sentence per iteration by adding to summary
-        while len(sentences_list) > 0:
+        while len(sent_list) > 0:
             # will store all the kls values for this pass
             kls = []
 
@@ -166,23 +176,20 @@ class KLSum(AbstractSummarizer):
             summary_as_word_list = self._get_all_words_in_doc(summary)
 
             sentenceCount = 0
-            for s in sentences_as_words:
-                weight = self.computeSentenceWeight(s, wordTF, wordFreq, wordFreqCorpus, docLength, corpusLength)
-
+            for s in sent_as_words:
                 # calculates the joint frequency through combining the word lists
                 joint_freq = self._joint_freq(s, summary_as_word_list)
 
-                # print(word_freq)
                 # adds the calculated kl divergence to the list in index = sentence used
-                kls.append(self._kl_divergence(joint_freq, wordFreq, weight))
+                kls.append(self._kl_divergence(joint_freq, wordFreq)) #continue to use chapter freq or switch to the sentences remaining freq
 
             # to consider and then add it into the summary
             indexToRemove = self._find_index_of_best_sentence(kls)
-            best_sentence = sentences_list.pop(indexToRemove)
-            del sentences_as_words[indexToRemove]
+            best_sentence = sent_list.pop(indexToRemove)
+            del sent_as_words[indexToRemove]
             summary.append(best_sentence)
 
             # value is the iteration in which it was removed multiplied by -1 so that the first sentences removed (the most important) have highest values
             ratings[best_sentence] = -1 * len(ratings)
 
-        return ratings
+        return ratings, sentencesInOrder

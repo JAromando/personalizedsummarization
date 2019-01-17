@@ -6,7 +6,6 @@ from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
 from _compat import to_unicode
 
-
 import os
 import math
 import re
@@ -15,13 +14,11 @@ import io
 class LanguageModel():
 
     def __call__(self):
-        wordFreqCorpus, corpusLength = self.computeSentenceProbability()
-        return wordFreqCorpus, corpusLength
+        wordFreqCorpus = self.computeSentenceProbability()
+        return wordFreqCorpus
 
     def computeSentenceProbability(self):
 
-        global corpusLength
-        corpusLength = 0
         global content_words_count
         content_words_count = 0
 
@@ -30,7 +27,6 @@ class LanguageModel():
         pdfFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/") if i.endswith("pdf")]
         wordFreqTF = {}
         for file in pdfFiles:
-            #print(file)
 
             raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/" + file)
 
@@ -45,22 +41,20 @@ class LanguageModel():
         txtFiles = [i for i in os.listdir("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/") if
                  i.endswith("txt")]
         for file in txtFiles:
-            #print(file)
 
             _parser = PlaintextParser.from_file(("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/background/" + file), Tokenizer(LANGUAGE))
 
             stemmer = Stemmer(LANGUAGE)
 
-            #summarizer = KLSum(stemmer)
             stop_words = get_stop_words(LANGUAGE)
 
             sentences = _parser.document.sentences
 
             wordFreqTF = self.compute_tf(sentences, wordFreqTF, stop_words)
 
-        content_word_tf = dict((w, f / content_words_count) for w, f in wordFreqTF.items())
+        content_word_tf = dict((w, f / content_words_count) for w, f in wordFreqTF.items()) #6
 
-        return content_word_tf, corpusLength
+        return content_word_tf
 
     def compute_tf(self, sentences, wordFreqTF, stop_words):
         """
@@ -91,9 +85,7 @@ class LanguageModel():
     def _compute_word_freq(self, list_of_words, wordFreqTF):
         word_freq = wordFreqTF
         for w in list_of_words:
-            global corpusLength
-            corpusLength += 1
-            word_freq[w] = word_freq.get(w, 0) + 1
+            word_freq[w] = word_freq.get(w, 0) + 1 #7
         return word_freq
 
     def _get_all_content_words_in_doc(self, sentences, stop_words):

@@ -1,0 +1,1623 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Introduction to Information Retrieval
+
+
+Online edition (c)
+2009 Cambridge UP
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+DRAFT! © April 1, 2009 Cambridge University Press. Feedback welcome. 403
+
+18 Matrix decompositions and latentsemantic indexing
+
+On page 123 we introduced the notion of a term-document matrix: an M × N
+matrix C, each of whose rows represents a term and each of whose columns
+represents a document in the collection. Even for a collection of modest size,
+the term-document matrix C is likely to have several tens of thousands of
+rows and columns. In Section 18.1.1 we first develop a class of operations
+from linear algebra, known as matrix decomposition. In Section 18.2 we use a
+special form of matrix decomposition to construct a low-rank approximation
+to the term-document matrix. In Section 18.3 we examine the application
+of such low-rank approximations to indexing and retrieving documents, a
+technique referred to as latent semantic indexing. While latent semantic in-
+dexing has not been established as a significant force in scoring and ranking
+for information retrieval, it remains an intriguing approach to clustering in a
+number of domains including for collections of text documents (Section 16.6,
+page 372). Understanding its full potential remains an area of active research.
+
+Readers who do not require a refresher on linear algebra may skip Sec-
+tion 18.1, although Example 18.1 is especially recommended as it highlights
+a property of eigenvalues that we exploit later in the chapter.
+
+18.1 Linear algebra review
+
+We briefly review some necessary background in linear algebra. Let C be
+an M × N matrix with real-valued entries; for a term-document matrix, all
+entries are in fact non-negative. The rank of a matrix is the number of linearlyRANK
+independent rows (or columns) in it; thus, rank(C) \u2264 min{M, N}. A square
+r × r matrix all of whose off-diagonal entries are zero is called a diagonal
+matrix; its rank is equal to the number of non-zero diagonal entries. If all
+r diagonal entries of such a diagonal matrix are 1, it is called the identity
+matrix of dimension r and represented by Ir.
+
+For a square M× M matrix C and a vector ~x that is not all zeros, the values
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+404 18 Matrix decompositions and latent semantic indexing
+
+of \u03bb satisfying
+
+C~x = \u03bb~x(18.1)
+
+are called the eigenvalues of C . The N-vector ~x satisfying Equation (18.1)EIGENVALUE
+for an eigenvalue \u03bb is the corresponding right eigenvector. The eigenvector
+corresponding to the eigenvalue of largest magnitude is called the principal
+eigenvector. In a similar fashion, the left eigenvectors of C are the M-vectors y
+such that
+
+~yT C = \u03bb~yT .(18.2)
+
+The number of non-zero eigenvalues of C is at most rank(C).
+The eigenvalues of a matrix are found by solving the characteristic equation,
+
+which is obtained by rewriting Equation (18.1) in the form (C \u2212 \u03bbIM)~x = 0.
+The eigenvalues of C are then the solutions of |(C \u2212 \u03bbIM)| = 0, where |S|
+denotes the determinant of a square matrix S. The equation |(C \u2212 \u03bbIM)| = 0
+is an Mth order polynomial equation in \u03bb and can have at most M roots,
+which are the eigenvalues of C. These eigenvalues can in general be complex,
+even if all entries of C are real.
+
+We now examine some further properties of eigenvalues and eigenvectors,
+to set up the central idea of singular value decompositions in Section 18.2 be-
+low. First, we look at the relationship between matrix-vector multiplication
+and eigenvalues.
+
+\u270e Example 18.1: Consider the matrix
+S =
+
+\uf8eb
+
+\uf8ed
+
+30 0 0
+0 20 0
+0 0 1
+
+\uf8f6
+
+\uf8f8 .
+
+Clearly the matrix has rank 3, and has 3 non-zero eigenvalues \u03bb1 = 30, \u03bb2 = 20 and
+\u03bb3 = 1, with the three corresponding eigenvectors
+
+~x1 =
+
+\uf8eb
+
+\uf8ed
+
+1
+0
+0
+
+\uf8f6
+
+\uf8f8 , ~x2 =
+
+\uf8eb
+
+\uf8ed
+
+0
+1
+0
+
+\uf8f6
+
+\uf8f8 and ~x3 =
+
+\uf8eb
+
+\uf8ed
+
+0
+0
+1
+
+\uf8f6
+
+\uf8f8 .
+
+For each of the eigenvectors, multiplication by S acts as if we were multiplying the
+eigenvector by a multiple of the identity matrix; the multiple is different for each
+
+eigenvector. Now, consider an arbitrary vector, such as ~v =
+
+\uf8eb
+
+\uf8ed
+
+2
+4
+6
+
+\uf8f6
+
+\uf8f8 . We can always
+
+express~v as a linear combination of the three eigenvectors of S; in the current example
+we have
+
+~v =
+
+\uf8eb
+
+\uf8ed
+
+2
+4
+6
+
+\uf8f6
+
+\uf8f8 = 2~x1 + 4~x2 + 6~x3.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.1 Linear algebra review 405
+
+Suppose we multiply ~v by S:
+
+S~v = S(2~x1 + 4~x2 + 6~x3)
+
+= 2S~x1 + 4S~x2 + 6S~x3
+= 2\u03bb1~x1 + 4\u03bb2~x2 + 6\u03bb3~x3
+= 60~x1 + 80~x2 + 6~x3.(18.3)
+
+Example 18.1 shows that even though ~v is an arbitrary vector, the effect of
+multiplication by S is determined by the eigenvalues and eigenvectors of S.
+Furthermore, it is intuitively apparent from Equation (18.3) that the product
+S~v is relatively unaffected by terms arising from the small eigenvalues of S;
+in our example, since \u03bb3 = 1, the contribution of the third term on the right
+hand side of Equation (18.3) is small. In fact, if we were to completely ignore
+the contribution in Equation (18.3) from the third eigenvector corresponding
+
+to \u03bb3 = 1, then the product S~v would be computed to be
+
+\uf8eb
+
+\uf8ed
+
+60
+80
+0
+
+\uf8f6
+
+\uf8f8 rather than
+
+the correct product which is
+
+\uf8eb
+
+\uf8ed
+
+60
+80
+6
+
+\uf8f6
+
+\uf8f8; these two vectors are relatively close
+
+to each other by any of various metrics one could apply (such as the length
+of their vector difference).
+
+This suggests that the effect of small eigenvalues (and their eigenvectors)
+on a matrix-vector product is small. We will carry forward this intuition
+when studying matrix decompositions and low-rank approximations in Sec-
+tion 18.2. Before doing so, we examine the eigenvectors and eigenvalues of
+special forms of matrices that will be of particular interest to us.
+
+For a symmetric matrix S, the eigenvectors corresponding to distinct eigen-
+values are orthogonal. Further, if S is both real and symmetric, the eigenvalues
+are all real.
+
+\u270e Example 18.2: Consider the real, symmetric matrix
+S =
+
+(
+
+2 1
+1 2
+
+)
+
+.(18.4)
+
+From the characteristic equation |S \u2212 \u03bbI| = 0, we have the quadratic (2 \u2212 \u03bb)2 \u2212 1 =
+0, whose solutions yield the eigenvalues 3 and 1. The corresponding eigenvectors
+(
+
+1
+\u22121
+
+)
+
+and
+
+(
+
+1
+1
+
+)
+
+are orthogonal.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+406 18 Matrix decompositions and latent semantic indexing
+
+18.1.1 Matrix decompositions
+
+In this section we examine ways in which a square matrix can be factored
+into the product of matrices derived from its eigenvectors; we refer to this
+process as matrix decomposition. Matrix decompositions similar to the onesMATRIX
+
+DECOMPOSITION in this section will form the basis of our principal text-analysis technique
+in Section 18.3, where we will look at decompositions of non-square term-
+document matrices. The square decompositions in this section are simpler
+and can be treated with sufficient mathematical rigor to help the reader un-
+derstand how such decompositions work. The detailed mathematical deriva-
+tion of the more complex decompositions in Section 18.2 are beyond the
+scope of this book.
+
+We begin by giving two theorems on the decomposition of a square ma-
+trix into the product of three matrices of a special form. The first of these,
+Theorem 18.1, gives the basic factorization of a square real-valued matrix
+into three factors. The second, Theorem 18.2, applies to square symmetric
+matrices and is the basis of the singular value decomposition described in
+Theorem 18.3.
+
+Theorem 18.1. (Matrix diagonalization theorem) Let S be a square real-valued
+M × M matrix with M linearly independent eigenvectors. Then there exists an
+eigen decompositionEIGEN DECOMPOSITION
+
+S = U\u039bU\u22121,(18.5)
+
+where the columns of U are the eigenvectors of S and \u039b is a diagonal matrix whose
+diagonal entries are the eigenvalues of S in decreasing order
+
+\uf8eb
+
+\uf8ec
+
+\uf8ec
+
+\uf8ed
+
+\u03bb1
+
+\u03bb2
+
+· · ·
+\u03bbM
+
+\uf8f6
+
+\uf8f7
+
+\uf8f7
+
+\uf8f8
+
+, \u03bbi \u2265 \u03bbi+1.(18.6)
+
+If the eigenvalues are distinct, then this decomposition is unique.
+
+To understand how Theorem 18.1 works, we note that U has the eigenvec-
+tors of S as columns
+
+U = (~u1 ~u2 · · · ~uM) .(18.7)
+Then we have
+
+SU = S (~u1 ~u2 · · · ~uM)
+= (\u03bb1 ~u1 \u03bb2 ~u2 · · ·\u03bbM ~uM)
+
+= (~u1 ~u2 · · · ~uM)
+
+\uf8eb
+
+\uf8ec
+
+\uf8ec
+
+\uf8ed
+
+\u03bb1
+
+\u03bb2
+
+· · ·
+\u03bbM
+
+\uf8f6
+
+\uf8f7
+
+\uf8f7
+
+\uf8f8
+
+.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.2 Term-document matrices and singular value decompositions 407
+
+Thus, we have SU = U\u039b, or S = U\u039bU\u22121.
+We next state a closely related decomposition of a symmetric square matrix
+
+into the product of matrices derived from its eigenvectors. This will pave the
+way for the development of our main tool for text analysis, the singular value
+decomposition (Section 18.2).
+
+Theorem 18.2. (Symmetric diagonalization theorem) Let S be a square, sym-
+metric real-valued M × M matrix with M linearly independent eigenvectors. Then
+there exists a symmetric diagonal decompositionSYMMETRIC DIAGONAL
+
+DECOMPOSITION
+
+S = Q\u039bQT,(18.8)
+
+where the columns of Q are the orthogonal and normalized (unit length, real) eigen-
+vectors of S, and \u039b is the diagonal matrix whose entries are the eigenvalues of S.
+Further, all entries of Q are real and we have Q\u22121 = QT.
+
+We will build on this symmetric diagonal decomposition to build low-rank
+approximations to term-document matrices.
+
+? Exercise 18.1What is the rank of the 3 × 3 diagonal matrix below?
+\uf8eb
+
+\uf8ed
+
+1 1 0
+0 1 1
+1 2 1
+
+\uf8f6
+
+\uf8f8
+
+Exercise 18.2
+
+Show that \u03bb = 2 is an eigenvalue of
+
+C =
+
+(
+
+6 \u22122
+4 0
+
+)
+
+.
+
+Find the corresponding eigenvector.
+
+Exercise 18.3
+
+Compute the unique eigen decomposition of the 2 × 2 matrix in (18.4).
+
+18.2 Term-document matrices and singular value decompositions
+
+The decompositions we have been studying thus far apply to square matri-
+ces. However, the matrix we are interested in is the M × N term-document
+matrix C where (barring a rare coincidence) M 6= N; furthermore, C is very
+unlikely to be symmetric. To this end we first describe an extension of the
+symmetric diagonal decomposition known as the singular value decomposi-SINGULAR VALUE
+
+DECOMPOSITION tion. We then show in Section 18.3 how this can be used to construct an ap-
+proximate version of C. It is beyond the scope of this book to develop a full
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+408 18 Matrix decompositions and latent semantic indexing
+
+treatment of the mathematics underlying singular value decompositions; fol-
+lowing the statement of Theorem 18.3 we relate the singular value decompo-
+sition to the symmetric diagonal decompositions from Section 18.1.1. GivenSYMMETRIC DIAGONAL
+
+DECOMPOSITION C, let U be the M × M matrix whose columns are the orthogonal eigenvec-
+tors of CCT , and V be the N × N matrix whose columns are the orthogonal
+eigenvectors of CTC. Denote by CT the transpose of a matrix C.
+
+Theorem 18.3. Let r be the rank of the M× N matrix C. Then, there is a singular-
+value decomposition (SVD for short) of C of the formSVD
+
+C = U\u03a3VT ,(18.9)
+
+where
+
+1. The eigenvalues \u03bb1, . . . , \u03bbr of CC
+T are the same as the eigenvalues of CTC;
+
+2. For 1 \u2264 i \u2264 r, let \u03c3i =
+\u221a
+
+\u03bbi, with \u03bbi \u2265 \u03bbi+1. Then the M × N matrix \u03a3 is
+composed by setting \u03a3ii = \u03c3i for 1 \u2264 i \u2264 r, and zero otherwise.
+
+The values \u03c3i are referred to as the singular values of C. It is instructive to
+examine the relationship of Theorem 18.3 to Theorem 18.2; we do this rather
+than derive the general proof of Theorem 18.3, which is beyond the scope of
+this book.
+
+By multiplying Equation (18.9) by its transposed version, we have
+
+CCT = U\u03a3VT V\u03a3UT = U\u03a32UT.(18.10)
+
+Note now that in Equation (18.10), the left-hand side is a square symmetric
+matrix real-valued matrix, and the right-hand side represents its symmetric
+diagonal decomposition as in Theorem 18.2. What does the left-hand side
+CCT represent? It is a square matrix with a row and a column correspond-
+ing to each of the M terms. The entry (i, j) in the matrix is a measure of the
+overlap between the ith and jth terms, based on their co-occurrence in docu-
+ments. The precise mathematical meaning depends on the manner in which
+C is constructed based on term weighting. Consider the case where C is the
+term-document incidence matrix of page 3, illustrated in Figure 1.1. Then the
+entry (i, j) in CCT is the number of documents in which both term i and term
+j occur.
+
+When writing down the numerical values of the SVD, it is conventional
+to represent \u03a3 as an r × r matrix with the singular values on the diagonals,
+since all its entries outside this sub-matrix are zeros. Accordingly, it is con-
+ventional to omit the rightmost M \u2212 r columns of U corresponding to these
+omitted rows of \u03a3; likewise the rightmost N \u2212 r columns of V are omitted
+since they correspond in VT to the rows that will be multiplied by the N \u2212 r
+columns of zeros in \u03a3. This written form of the SVD is sometimes known
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.2 Term-document matrices and singular value decompositions 409
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+C = U \u03a3 VT
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+\u25ee Figure 18.1 Illustration of the singular-value decomposition. In this schematic
+illustration of (18.9), we see two cases illustrated. In the top half of the figure, we
+have a matrix C for which M > N. The lower half illustrates the case M < N.
+
+as the reduced SVD or truncated SVD and we will encounter it again in Ex-REDUCED SVD
+TRUNCATED SVD ercise 18.9. Henceforth, our numerical examples and exercises will use this
+
+reduced form.
+
+\u270e Example 18.3: We now illustrate the singular-value decomposition of a 4 × 2 ma-trix of rank 2; the singular values are \u03a311 = 2.236 and \u03a322 = 1.
+
+C =
+
+\uf8eb
+
+\uf8ec
+
+\uf8ec
+
+\uf8ed
+
+1 \u22121
+0 1
+1 0
+\u22121 1
+
+\uf8f6
+
+\uf8f7
+
+\uf8f7
+
+\uf8f8
+
+=
+
+\uf8eb
+
+\uf8ec
+
+\uf8ec
+
+\uf8ed
+
+\u22120.632 0.000
+0.316 \u22120.707
+\u22120.316 \u22120.707
+0.632 0.000
+
+\uf8f6
+
+\uf8f7
+
+\uf8f7
+
+\uf8f8
+
+(
+
+2.236 0.000
+0.000 1.000
+
+) (
+
+\u22120.707 0.707
+\u22120.707 \u22120.707
+
+)
+
+.(18.11)
+
+As with the matrix decompositions defined in Section 18.1.1, the singu-
+lar value decomposition of a matrix can be computed by a variety of algo-
+rithms, many of which have been publicly available software implementa-
+tions; pointers to these are given in Section 18.5.
+
+? Exercise 18.4Let
+C =
+
+\uf8eb
+
+\uf8ed
+
+1 1
+0 1
+1 0
+
+\uf8f6
+
+\uf8f8(18.12)
+
+be the term-document incidence matrix for a collection. Compute the co-occurrence
+
+matrix CCT. What is the interpretation of the diagonal entries of CCT when C is a
+term-document incidence matrix?
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+410 18 Matrix decompositions and latent semantic indexing
+
+Exercise 18.5
+
+Verify that the SVD of the matrix in Equation (18.12) is
+
+U =
+
+\uf8eb
+
+\uf8ed
+
+\u22120.816 0.000
+\u22120.408 \u22120.707
+\u22120.408 0.707
+
+\uf8f6
+
+\uf8f8 , \u03a3 =
+
+(
+
+1.732 0.000
+0.000 1.000
+
+)
+
+and VT =
+
+(
+
+\u22120.707 \u22120.707
+0.707 \u22120.707
+
+)
+
+,(18.13)
+
+by verifying all of the properties in the statement of Theorem 18.3.
+
+Exercise 18.6
+
+Suppose that C is a binary term-document incidence matrix. What do the entries of
+
+CTC represent?
+
+Exercise 18.7
+
+Let
+
+C =
+
+\uf8eb
+
+\uf8ed
+
+0 2 1
+0 3 0
+2 1 0
+
+\uf8f6
+
+\uf8f8(18.14)
+
+be a term-document matrix whose entries are term frequencies; thus term 1 occurs 2
+
+times in document 2 and once in document 3. Compute CCT; observe that its entries
+are largest where two terms have their most frequent occurrences together in the same
+document.
+
+18.3 Low-rank approximations
+
+We next state a matrix approximation problem that at first seems to have
+little to do with information retrieval. We describe a solution to this matrix
+problem using singular-value decompositions, then develop its application
+to information retrieval.
+
+Given an M × N matrix C and a positive integer k, we wish to find an
+M × N matrix Ck of rank at most k, so as to minimize the Frobenius norm ofFROBENIUS NORM
+the matrix difference X = C \u2212 Ck, defined to be
+
+\u2016X\u2016F =
+
+\u221a
+
+\u221a
+
+\u221a
+
+\u221a
+
+M
+
+\u2211
+i=1
+
+N
+
+\u2211
+j=1
+
+X2ij.(18.15)
+
+Thus, the Frobenius norm of X measures the discrepancy between Ck and C;
+our goal is to find a matrix Ck that minimizes this discrepancy, while con-
+straining Ck to have rank at most k. If r is the rank of C, clearly Cr = C
+and the Frobenius norm of the discrepancy is zero in this case. When k is far
+smaller than r, we refer to Ck as a low-rank approximation.LOW-RANK
+
+APPROXIMATION The singular value decomposition can be used to solve the low-rank ma-
+trix approximation problem. We then derive from it an application to ap-
+proximating term-document matrices. We invoke the following three-step
+procedure to this end:
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.3 Low-rank approximations 411
+
+Ck = U \u03a3k V
+T
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+r
+
+\u25ee Figure 18.2 Illustration of low rank approximation using the singular-value de-
+composition. The dashed boxes indicate the matrix entries affected by \u201czeroing out\u201d
+the smallest singular values.
+
+1. Given C, construct its SVD in the form shown in (18.9); thus, C = U\u03a3VT.
+
+2. Derive from \u03a3 the matrix \u03a3k formed by replacing by zeros the r \u2212 k small-
+est singular values on the diagonal of \u03a3.
+
+3. Compute and output Ck = U\u03a3kV
+T as the rank-k approximation to C.
+
+The rank of Ck is at most k: this follows from the fact that \u03a3k has at most
+k non-zero values. Next, we recall the intuition of Example 18.1: the effect
+of small eigenvalues on matrix products is small. Thus, it seems plausible
+that replacing these small eigenvalues by zero will not substantially alter the
+product, leaving it \u201cclose\u201d to C. The following theorem due to Eckart and
+Young tells us that, in fact, this procedure yields the matrix of rank k with
+the lowest possible Frobenius error.
+
+Theorem 18.4.
+
+min
+Z| rank(Z)=k
+
+\u2016C \u2212 Z\u2016F = \u2016C \u2212 Ck\u2016F = \u03c3k+1.(18.16)
+
+Recalling that the singular values are in decreasing order \u03c31 \u2265 \u03c32 \u2265 · · ·,
+we learn from Theorem 18.4 that Ck is the best rank-k approximation to C,
+incurring an error (measured by the Frobenius norm of C\u2212Ck) equal to \u03c3k+1.
+Thus the larger k is, the smaller this error (and in particular, for k = r, the
+error is zero since \u03a3r = \u03a3; provided r < M, N, then \u03c3r+1 = 0 and thus
+Cr = C).
+
+To derive further insight into why the process of truncating the smallest
+r\u2212 k singular values in \u03a3 helps generate a rank-k approximation of low error,
+we examine the form of Ck:
+
+Ck = U\u03a3kV
+T(18.17)
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+412 18 Matrix decompositions and latent semantic indexing
+
+= U
+
+\uf8eb
+
+\uf8ec
+
+\uf8ec
+
+\uf8ec
+
+\uf8ec
+
+\uf8ed
+
+\u03c31 0 0 0 0
+0 · · · 0 0 0
+0 0 \u03c3k 0 0
+0 0 0 0 0
+0 0 0 0 · · ·
+
+\uf8f6
+
+\uf8f7
+
+\uf8f7
+
+\uf8f7
+
+\uf8f7
+
+\uf8f8
+
+VT(18.18)
+
+=
+k
+
+\u2211
+i=1
+
+\u03c3i~ui~v
+T
+i ,(18.19)
+
+where ~ui and ~vi are the ith columns of U and V, respectively. Thus, ~ui~v
+T
+i is
+
+a rank-1 matrix, so that we have just expressed Ck as the sum of k rank-1
+matrices each weighted by a singular value. As i increases, the contribution
+of the rank-1 matrix ~ui~v
+
+T
+i is weighted by a sequence of shrinking singular
+
+values \u03c3i.
+
+? Exercise 18.8Compute a rank 1 approximation C1 to the matrix C in Example 18.12, using the SVD
+as in Exercise 18.13. What is the Frobenius norm of the error of this approximation?
+
+Exercise 18.9
+
+Consider now the computation in Exercise 18.8. Following the schematic in Fig-
+ure 18.2, notice that for a rank 1 approximation we have \u03c31 being a scalar. Denote
+by U1 the first column of U and by V1 the first column of V. Show that the rank-1
+
+approximation to C can then be written as U1\u03c31V
+T
+1 = \u03c31U1V
+
+T
+1 .
+
+Exercise 18.10
+
+Exercise 18.9 can be generalized to rank k approximations: we let U\u2032k and V
+\u2032
+k denote
+
+the \u201creduced\u201d matrices formed by retaining only the first k columns of U and V,
+
+respectively. Thus U\u2032k is an M × k matrix while V \u2032
+T
+k is a k × N matrix. Then, we have
+
+Ck = U
+\u2032
+k\u03a3
+
+\u2032
+kV
+
+\u2032T
+k ,(18.20)
+
+where \u03a3\u2032k is the square k × k submatrix of \u03a3k with the singular values \u03c31, . . . , \u03c3k on
+the diagonal. The primary advantage of using (18.20) is to eliminate a lot of redun-
+dant columns of zeros in U and V, thereby explicitly eliminating multiplication by
+columns that do not affect the low-rank approximation; this version of the SVD is
+sometimes known as the reduced SVD or truncated SVD and is a computationally
+simpler representation from which to compute the low rank approximation.
+
+For the matrix C in Example 18.3, write down both \u03a32 and \u03a3
+\u2032
+2.
+
+18.4 Latent semantic indexing
+
+We now discuss the approximation of a term-document matrix C by one of
+lower rank using the SVD. The low-rank approximation to C yields a new
+representation for each document in the collection. We will cast queries
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.4 Latent semantic indexing 413
+
+into this low-rank representation as well, enabling us to compute query-
+document similarity scores in this low-rank representation. This process is
+known as latent semantic indexing (generally abbreviated LSI).LATENT SEMANTIC
+
+INDEXING But first, we motivate such an approximation. Recall the vector space rep-
+resentation of documents and queries introduced in Section 6.3 (page 120).
+This vector space representation enjoys a number of advantages including
+the uniform treatment of queries and documents as vectors, the induced
+score computation based on cosine similarity, the ability to weight differ-
+ent terms differently, and its extension beyond document retrieval to such
+applications as clustering and classification. The vector space representa-
+tion suffers, however, from its inability to cope with two classic problems
+arising in natural languages: synonymy and polysemy. Synonymy refers to a
+case where two different words (say car and automobile) have the same mean-
+ing. Because the vector space representation fails to capture the relationship
+between synonymous terms such as car and automobile \u2013 according each a
+separate dimension in the vector space. Consequently the computed simi-
+
+larity ~q · ~d between a query ~q (say, car) and a document ~d containing both car
+and automobile underestimates the true similarity that a user would perceive.
+Polysemy on the other hand refers to the case where a term such as charge
+
+has multiple meanings, so that the computed similarity ~q · ~d overestimates
+the similarity that a user would perceive. Could we use the co-occurrences
+of terms (whether, for instance, charge occurs in a document containing steed
+versus in a document containing electron) to capture the latent semantic as-
+sociations of terms and alleviate these problems?
+
+Even for a collection of modest size, the term-document matrix C is likely
+to have several tens of thousand of rows and columns, and a rank in the
+tens of thousands as well. In latent semantic indexing (sometimes referred
+to as latent semantic analysis (LSA)), we use the SVD to construct a low-rankLSA
+approximation Ck to the term-document matrix, for a value of k that is far
+smaller than the original rank of C. In the experimental work cited later
+in this section, k is generally chosen to be in the low hundreds. We thus
+map each row/column (respectively corresponding to a term/document) to
+a k-dimensional space; this space is defined by the k principal eigenvectors
+(corresponding to the largest eigenvalues) of CCT and CTC. Note that the
+matrix Ck is itself still an M × N matrix, irrespective of k.
+
+Next, we use the new k-dimensional LSI representation as we did the orig-
+inal representation \u2013 to compute similarities between vectors. A query vector
+~q is mapped into its representation in the LSI space by the transformation
+
+~qk = \u03a3
+\u22121
+k U
+
+T
+k ~q.(18.21)
+
+Now, we may use cosine similarities as in Section 6.3.1 (page 120) to com-
+pute the similarity between a query and a document, between two docu-
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+414 18 Matrix decompositions and latent semantic indexing
+
+ments, or between two terms. Note especially that Equation (18.21) does not
+in any way depend on ~q being a query; it is simply a vector in the space of
+terms. This means that if we have an LSI representation of a collection of
+documents, a new document not in the collection can be \u201cfolded in\u201d to this
+representation using Equation (18.21). This allows us to incrementally add
+documents to an LSI representation. Of course, such incremental addition
+fails to capture the co-occurrences of the newly added documents (and even
+ignores any new terms they contain). As such, the quality of the LSI rep-
+resentation will degrade as more documents are added and will eventually
+require a recomputation of the LSI representation.
+
+The fidelity of the approximation of Ck to C leads us to hope that the rel-
+ative values of cosine similarities are preserved: if a query is close to a doc-
+ument in the original space, it remains relatively close in the k-dimensional
+space. But this in itself is not sufficiently interesting, especially given that
+the sparse query vector ~q turns into a dense query vector ~qk in the low-
+dimensional space. This has a significant computational cost, when com-
+pared with the cost of processing ~q in its native form.
+
+\u270e Example 18.4: Consider the term-document matrix C =d1 d2 d3 d4 d5 d6
+ship 1 0 1 0 0 0
+boat 0 1 0 0 0 0
+ocean 1 1 0 0 0 0
+voyage 1 0 0 1 1 0
+trip 0 0 0 1 0 1
+
+Its singular value decomposition is the product of three matrices as below. First we
+have U which in this example is:
+
+1 2 3 4 5
+ship \u22120.44 \u22120.30 0.57 0.58 0.25
+boat \u22120.13 \u22120.33 \u22120.59 0.00 0.73
+ocean \u22120.48 \u22120.51 \u22120.37 0.00 \u22120.61
+voyage \u22120.70 0.35 0.15 \u22120.58 0.16
+trip \u22120.26 0.65 \u22120.41 0.58 \u22120.09
+
+When applying the SVD to a term-document matrix, U is known as the SVD term
+matrix. The singular values are \u03a3 =
+
+2.16 0.00 0.00 0.00 0.00
+0.00 1.59 0.00 0.00 0.00
+0.00 0.00 1.28 0.00 0.00
+0.00 0.00 0.00 1.00 0.00
+0.00 0.00 0.00 0.00 0.39
+
+Finally we have VT , which in the context of a term-document matrix is known as
+the SVD document matrix:
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.4 Latent semantic indexing 415
+
+d1 d2 d3 d4 d5 d6
+1 \u22120.75 \u22120.28 \u22120.20 \u22120.45 \u22120.33 \u22120.12
+2 \u22120.29 \u22120.53 \u22120.19 0.63 0.22 0.41
+3 0.28 \u22120.75 0.45 \u22120.20 0.12 \u22120.33
+4 0.00 0.00 0.58 0.00 \u22120.58 0.58
+5 \u22120.53 0.29 0.63 0.19 0.41 \u22120.22
+
+By \u201czeroing out\u201d all but the two largest singular values of \u03a3, we obtain \u03a32 =
+
+2.16 0.00 0.00 0.00 0.00
+0.00 1.59 0.00 0.00 0.00
+0.00 0.00 0.00 0.00 0.00
+0.00 0.00 0.00 0.00 0.00
+0.00 0.00 0.00 0.00 0.00
+
+From this, we compute C2 =
+
+d1 d2 d3 d4 d5 d6
+1 \u22121.62 \u22120.60 \u22120.44 \u22120.97 \u22120.70 \u22120.26
+2 \u22120.46 \u22120.84 \u22120.30 1.00 0.35 0.65
+3 0.00 0.00 0.00 0.00 0.00 0.00
+4 0.00 0.00 0.00 0.00 0.00 0.00
+5 0.00 0.00 0.00 0.00 0.00 0.00
+
+Notice that the low-rank approximation, unlike the original matrix C, can have
+negative entries.
+
+Examination of C2 and \u03a32 in Example 18.4 shows that the last 3 rows of
+each of these matrices are populated entirely by zeros. This suggests that
+the SVD product U\u03a3VT in Equation (18.18) can be carried out with only two
+rows in the representations of \u03a32 and V
+
+T ; we may then replace these matrices
+by their truncated versions \u03a3\u20322 and (V
+
+\u2032)T. For instance, the truncated SVD
+document matrix (V\u2032)T in this example is:
+
+d1 d2 d3 d4 d5 d6
+1 \u22121.62 \u22120.60 \u22120.44 \u22120.97 \u22120.70 \u22120.26
+2 \u22120.46 \u22120.84 \u22120.30 1.00 0.35 0.65
+
+Figure 18.3 illustrates the documents in (V\u2032)T in two dimensions. Note
+also that C2 is dense relative to C.
+
+We may in general view the low-rank approximation of C by Ck as a con-
+strained optimization problem: subject to the constraint that Ck have rank at
+most k, we seek a representation of the terms and documents comprising C
+with low Frobenius norm for the error C \u2212 Ck. When forced to squeeze the
+terms/documents down to a k-dimensional space, the SVD should bring to-
+gether terms with similar co-occurrences. This intuition suggests, then, that
+not only should retrieval quality not suffer too much from the dimension
+reduction, but in fact may improve.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+416 18 Matrix decompositions and latent semantic indexing
+
+\u22120.5\u22121.0\u22121.5
+
+0.5
+
+1.0
+
+\u22120.5
+
+\u22121.0
+
+dim 2
+
+dim 1
+
+×
+d1
+
+×
+d2
+
+× d3
+
+×
+
+d4
+
+×
+d5
+
+× d6
+
+\u25ee Figure 18.3 The documents of Example 18.4 reduced to two dimensions in (V \u2032)T.
+
+Dumais (1993) and Dumais (1995) conducted experiments with LSI on
+TREC documents and tasks, using the commonly-used Lanczos algorithm
+to compute the SVD. At the time of their work in the early 1990\u2019s, the LSI
+computation on tens of thousands of documents took approximately a day
+on one machine. On these experiments, they achieved precision at or above
+that of the median TREC participant. On about 20% of TREC topics their
+system was the top scorer, and reportedly slightly better on average than
+standard vector spaces for LSI at about 350 dimensions. Here are some con-
+clusions on LSI first suggested by their work, and subsequently verified by
+many other experiments.
+
+\u2022 The computational cost of the SVD is significant; at the time of this writ-
+ing, we know of no successful experiment with over one million docu-
+ments. This has been the biggest obstacle to the widespread adoption to
+LSI. One approach to this obstacle is to build the LSI representation on a
+randomly sampled subset of the documents in the collection, following
+which the remaining documents are \u201cfolded in\u201d as detailed with Equa-
+tion (18.21).
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.5 References and further reading 417
+
+\u2022 As we reduce k, recall tends to increase, as expected.
+
+\u2022 Most surprisingly, a value of k in the low hundreds can actually increase
+precision on some query benchmarks. This appears to suggest that for a
+suitable value of k, LSI addresses some of the challenges of synonymy.
+
+\u2022 LSI works best in applications where there is little overlap between queries
+and documents.
+
+The experiments also documented some modes where LSI failed to match
+the effectiveness of more traditional indexes and score computations. Most
+notably (and perhaps obviously), LSI shares two basic drawbacks of vector
+space retrieval: there is no good way of expressing negations (find docu-
+ments that contain german but not shepherd), and no way of enforcing Boolean
+conditions.
+
+LSI can be viewed as soft clustering by interpreting each dimension of theSOFT CLUSTERING
+reduced space as a cluster and the value that a document has on that dimen-
+sion as its fractional membership in that cluster.
+
+18.5 References and further reading
+
+Strang (1986) provides an excellent introductory overview of matrix decom-
+positions including the singular value decomposition. Theorem 18.4 is due
+to Eckart and Young (1936). The connection between information retrieval
+and low-rank approximations of the term-document matrix was introduced
+in Deerwester et al. (1990), with a subsequent survey of results in Berry
+et al. (1995). Dumais (1993) and Dumais (1995) describe experiments on
+TREC benchmarks giving evidence that at least on some benchmarks, LSI
+can produce better precision and recall than standard vector-space retrieval.
+http://www.cs.utk.edu/\u02dcberry/lsi++/ and http://lsi.argreenhouse.com/lsi/LSIpapers.html
+offer comprehensive pointers to the literature and software of LSI. Schütze
+and Silverstein (1997) evaluate LSI and truncated representations of cen-
+troids for efficient K-means clustering (Section 16.4). Bast and Majumdar
+(2005) detail the role of the reduced dimension k in LSI and how different
+pairs of terms get coalesced together at differing values of k. Applications of
+LSI to cross-language information retrieval (where documents in two or moreCROSS-LANGUAGE
+
+INFORMATION
+
+RETRIEVAL
+different languages are indexed, and a query posed in one language is ex-
+pected to retrieve documents in other languages) are developed in Berry and
+Young (1995) and Littman et al. (1998). LSI (referred to as LSA in more gen-
+eral settings) has been applied to host of other problems in computer science
+ranging from memory modeling to computer vision.
+
+Hofmann (1999a;b) provides an initial probabilistic extension of the basic
+latent semantic indexing technique. A more satisfactory formal basis for a
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+418 18 Matrix decompositions and latent semantic indexing
+
+DocID Document text
+1 hello
+2 open house
+3 mi casa
+4 hola Profesor
+5 hola y bienvenido
+6 hello and welcome
+
+\u25ee Figure 18.4 Documents for Exercise 18.11.
+
+Spanish English
+mi my
+casa house
+hola hello
+profesor professor
+y and
+bienvenido welcome
+
+\u25ee Figure 18.5 Glossary for Exercise 18.11.
+
+probabilistic latent variable model for dimensionality reduction is the Latent
+Dirichlet Allocation (LDA) model (Blei et al. 2003), which is generative and
+assigns probabilities to documents outside of the training set. This model is
+extended to a hierarchical clustering by Rosen-Zvi et al. (2004). Wei and Croft
+(2006) present the first large scale evaluation of LDA, finding it to signifi-
+cantly outperform the query likelihood model of Section 12.2 (page 242), but
+to not perform quite as well as the relevance model mentioned in Section 12.4
+(page 250) \u2013 but the latter does additional per-query processing unlike LDA.
+Teh et al. (2006) generalize further by presenting Hierarchical Dirichlet Pro-
+cesses, a probabilistic model which allows a group (for us, a document) to
+be drawn from an infinite mixture of latent topics, while still allowing these
+topics to be shared across documents.
+
+? Exercise 18.11Assume you have a set of documents each of which is in either English or in Spanish.
+The collection is given in Figure 18.4.
+
+Figure 18.5 gives a glossary relating the Spanish and English words above for your
+own information. This glossary is NOT available to the retrieval system:
+
+1. Construct the appropriate term-document matrix C to use for a collection con-
+sisting of these documents. For simplicity, use raw term frequencies rather than
+normalized tf-idf weights. Make sure to clearly label the dimensions of your ma-
+trix.
+
+
+
+Online edition (c)
+2009 Cambridge UP
+
+18.5 References and further reading 419
+
+2. Write down the matrices U2, \u03a3
+\u2032
+2 and V2 and from these derive the rank 2 approxi-
+
+mation C2.
+
+3. State succinctly what the (i, j) entry in the matrix CTC represents.
+
+4. State succinctly what the (i, j) entry in the matrix CT2 C2 represents, and why it
+
+differs from that in CTC.
+
+
+	Matrix decompositions and latent semantic indexing
+	Linear algebra review
+	Matrix decompositions
+
+	Term-document matrices and singular value decompositions
+	Low-rank approximations
+	Latent semantic indexing
+	References and further reading
+
+
