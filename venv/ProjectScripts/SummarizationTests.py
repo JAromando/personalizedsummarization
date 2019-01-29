@@ -6,7 +6,6 @@ from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 from sumy.summarizers.lex_rank import LexRankSummarizer
-from sumy.summarizers.reduction import ReductionSummarizer
 #from sumy.summarizers.kl import KLSummarizer
 from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
@@ -14,6 +13,7 @@ from tika import parser
 
 from kl import KLSum
 from klTwo import KLSummarizer
+from klParsimon import KLSumParsim
 
 LANGUAGE = "english"
 SENTENCES_COUNT = 7
@@ -93,6 +93,17 @@ def klSummarizationAltered(_parser):
     for sentence in summary:
         print(sentence)'''
 
+def ParsimoniousSummarization(_parser):
+
+    stemmer = Stemmer(LANGUAGE)
+
+    summarizer = KLSumParsim(stemmer)
+    summarizer.stop_words = get_stop_words(LANGUAGE)
+    summary = summarizer(_parser.document, SENTENCES_COUNT)
+
+    for sentence in summary:
+        print(sentence)
+
 if __name__ == "__main__":
 
     '''raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.pdf")
@@ -111,15 +122,27 @@ if __name__ == "__main__":
     for i in tempRaw:
         newRaw = newRaw + '\n' + i'''
 
-    raw = parser.from_file("C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.pdf")
+    raw = parser.from_file("C:/Users/johna/PycharmProjects/personalizedsummarization/venv/data/chapterFocus/03dict.pdf")
 
-    txtfile = "C:/Users/John/PycharmProjects/SummarizationTests/venv/data/chapterFocus/07system.txt"
+    txtfile = "C:/Users/johna/PycharmProjects/personalizedsummarization/venv/data/chapterFocus/03dict.txt"
 
     text_file = open(txtfile, "w", encoding="raw_unicode_escape")
     text_file.write(raw['content'])
     text_file.close()
 
     parser = PlaintextParser.from_file(txtfile, Tokenizer(LANGUAGE))
+
+    txtfile = "C:/Users/johna/PycharmProjects/personalizedsummarization/venv/data/chapterFocus/03dictjson.txt"
+
+    with open(txtfile, "w") as myfile:
+        for sent in parser.document.sentences:
+            #if not str(sent).endswith("."):
+                #myfile.write('"' + str(sent) + '.",\n')
+                myfile.write('"' + str(sent) + '",\n')
+
+    myfile.close()
+
+    print("CLOSED")
 
     '''print()
     lsaSummarization(parser)
@@ -139,3 +162,7 @@ if __name__ == "__main__":
     print()
     print()
     klSummarizationAltered(parser)
+    print()
+    print()
+    print()
+    ParsimoniousSummarization(parser)
